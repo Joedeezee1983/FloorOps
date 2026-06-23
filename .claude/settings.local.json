@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@14 . --typescript --tailwind --eslint --app --no-src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(openssl rand *)",
+      "Bash(npx ts-node *)",
+      "Bash(npm run *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s http://localhost:3002/api/auth/csrf)",
+      "Bash(rm -f /tmp/fo-cookies.txt)",
+      "Bash(curl -s -c /tmp/fo-cookies.txt http://localhost:3002/api/auth/csrf)",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "PowerShell(Get-Process -Id 100020 2>&1)",
+      "Bash(pkill -f \"next dev\")"
+    ]
+  }
+}
