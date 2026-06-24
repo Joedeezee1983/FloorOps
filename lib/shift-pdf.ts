@@ -31,6 +31,19 @@ function sanitize(text: string): string {
   return text.replace(/[^\x20-\x7E\n]/g, '')
 }
 
+/**
+ * Removes markdown formatting characters so AI-generated text renders as
+ * plain prose in the PDF. Handles headings, bold, italic, and underline syntax.
+ */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+/gm, '')   // ## Heading
+    .replace(/\*\*(.+?)\*\*/g, '$1') // **bold**
+    .replace(/__(.+?)__/g, '$1')     // __bold__
+    .replace(/\*(.+?)\*/g, '$1')     // *italic*
+    .replace(/_(.+?)_/g, '$1')       // _italic_
+}
+
 function wrapText(
   text: string,
   maxWidth: number,
@@ -229,7 +242,7 @@ function renderAiBriefing(ctx: PageContext, aiSummary: string): void {
 
   const paragraphs = aiSummary.split('\n').filter((p) => p.trim())
   for (const paragraph of paragraphs) {
-    writeWrapped(ctx, paragraph, { size: 10 })
+    writeWrapped(ctx, stripMarkdown(paragraph), { size: 10 })
     skip(ctx, 6)
   }
 }

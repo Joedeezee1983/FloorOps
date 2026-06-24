@@ -764,10 +764,14 @@ function LogTaskModal({
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
   }, [])
 
-  // PRE_EXISTING_DOWN forces DOWN_MACHINE task type
+  // PRE_EXISTING_DOWN forces DOWN_MACHINE, and DOWN_MACHINE defaults to PRE_EXISTING_DOWN
   useEffect(() => {
     if (section === 'PRE_EXISTING_DOWN') setTaskType('DOWN_MACHINE')
   }, [section])
+
+  useEffect(() => {
+    if (taskType === 'DOWN_MACHINE') setSection('PRE_EXISTING_DOWN')
+  }, [taskType])
 
   const showMachineSearch = taskType === 'DOWN_MACHINE'
 
