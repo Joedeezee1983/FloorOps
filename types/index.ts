@@ -208,3 +208,42 @@ export interface UserSummary {
   role: UserRole
   locationId: string | null
 }
+
+// ─── Admin types ──────────────────────────────────────────────────────────────
+
+export interface AdminUserItem {
+  id: string
+  name: string | null
+  email: string
+  role: UserRole
+  isActive: boolean
+  locationId: string | null
+  createdAt: string
+}
+
+export interface AdminLocationItem {
+  id: string
+  name: string
+  floorNumber: number | null
+  isActive: boolean
+  machineCount: number
+  createdAt: string
+}
+
+export interface SystemSettingsData {
+  id: string
+  locationId: string
+  dayShiftStart: string
+  dayShiftEnd: string
+  swingShiftStart: string
+  swingShiftEnd: string
+  nightShiftStart: string
+  nightShiftEnd: string
+  shiftTimeoutHours: number
+}
+
+export interface DataStats {
+  totalShifts: number
+  totalTasks: number
+  totalMachines: number
+}

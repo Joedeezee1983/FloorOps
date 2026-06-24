@@ -59,6 +59,7 @@ model User {
   image         String?
   password      String?
   role          UserRole  @default(TECH)
+  isActive      Boolean   @default(true)
   locationId    String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -70,6 +71,7 @@ model User {
 
   @@index([email])
   @@index([locationId])
+  @@index([isActive])
 }
 
 model Account {
@@ -124,6 +126,7 @@ model Location {
   machines  Machine[]
   shifts    Shift[]
   blueprint FloorBlueprint?
+  settings  SystemSettings?
 
   @@index([name])
 }
@@ -223,4 +226,20 @@ model ShiftTask {
   @@index([shiftId])
   @@index([machineId])
   @@index([status])
+}
+
+model SystemSettings {
+  id                String   @id @default(cuid())
+  locationId        String   @unique
+  dayShiftStart     String   @default("06:00")
+  dayShiftEnd       String   @default("14:00")
+  swingShiftStart   String   @default("14:00")
+  swingShiftEnd     String   @default("22:00")
+  nightShiftStart   String   @default("22:00")
+  nightShiftEnd     String   @default("06:00")
+  shiftTimeoutHours Int      @default(10)
+
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@index([locationId])
 }
