@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import StatusBadge from '@/components/StatusBadge'
-import { MACHINE_STATUS_LABELS } from '@/constants'
+import { MACHINE_STATUS_LABELS, PROGRESSIVE_TYPE_LABELS } from '@/constants'
 import type { MachineDetail, MachineStatus } from '@/types'
 
 export interface MachineDrawerProps {
@@ -94,9 +94,9 @@ function DrawerHeader({
         ) : (
           <>
             <p className="text-xs text-gray-500 mb-1">
-              {detail?.machineNumber != null ? `M-${detail.machineNumber}` : 'Machine Detail'}
+              {detail?.assetNumber != null ? `Asset #${detail.assetNumber}` : 'Machine Detail'}
             </p>
-            <h2 className="text-xl font-bold text-white">{detail?.name ?? '—'}</h2>
+            <h2 className="text-xl font-bold text-white">{detail?.gameName ?? '—'}</h2>
             {detail && <div className="mt-2"><StatusBadge status={detail.status} /></div>}
           </>
         )}
@@ -116,19 +116,21 @@ function DrawerHeader({
 
 function DrawerMeta({ detail }: { detail: MachineDetail }) {
   const rows: Array<{ label: string; value: string | null }> = [
-    { label: 'Serial', value: detail.serialNumber },
-    { label: 'Model', value: detail.model },
-    { label: 'Manufacturer', value: detail.manufacturer },
+    { label: 'Bank', value: detail.bankNumber },
+    { label: 'Brand', value: detail.gameBrand },
+    { label: 'Game Type', value: detail.gameType },
+    { label: 'Progressive', value: PROGRESSIVE_TYPE_LABELS[detail.progressiveType] ?? detail.progressiveType },
+    { label: 'Denomination', value: `$${detail.denomination.toFixed(2)}` },
+    { label: 'Software', value: detail.softwareVersion },
     { label: 'Location', value: detail.locationName },
     {
       label: 'Grid position',
       value: detail.gridX != null ? `(${detail.gridX}, ${detail.gridY})` : 'Unplaced',
     },
     {
-      label: 'Installed',
-      value: detail.installedAt ? new Date(detail.installedAt).toLocaleDateString() : null,
+      label: 'Registered',
+      value: new Date(detail.createdAt).toLocaleDateString(),
     },
-    { label: 'Notes', value: detail.notes },
   ]
 
   return (

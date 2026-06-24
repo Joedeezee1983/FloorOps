@@ -1,35 +1,63 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { LocationSummary, MapMachine } from '@/types'
+import { GAME_BRANDS, GAME_TYPES, DENOMINATIONS, PROGRESSIVE_TYPE_LABELS } from '@/constants'
+import type { LocationSummary, MapMachine, MachineListItem } from '@/types'
 
 export interface MachineFormProps {
-  onCreated: (machine: MapMachine) => void
   onClose: () => void
+  onCreated: (machine: MapMachine) => void
+  initialMachine?: MachineListItem
 }
 
 interface FormState {
-  name: string
-  machineNumber: string
-  serialNumber: string
-  model: string
-  manufacturer: string
+  assetNumber: string
+  bankNumber: string
+  gameName: string
+  gameBrand: string
+  gameType: string
+  progressiveType: string
+  denomination: string
+  softwareVersion: string
   locationId: string
-  notes: string
+  status: string
 }
 
-const EMPTY_FORM: FormState = {
-  name: '',
-  machineNumber: '',
-  serialNumber: '',
-  model: '',
-  manufacturer: '',
-  locationId: '',
-  notes: '',
+function toFormState(m?: MachineListItem): FormState {
+  if (!m) {
+    return {
+      assetNumber: '',
+      bankNumber: '',
+      gameName: '',
+      gameBrand: '',
+      gameType: '',
+      progressiveType: 'NONE',
+      denomination: '0.01',
+      softwareVersion: '',
+      locationId: '',
+      status: 'ONLINE',
+    }
+  }
+  return {
+    assetNumber: m.assetNumber,
+    bankNumber: m.bankNumber,
+    gameName: m.gameName,
+    gameBrand: m.gameBrand,
+    gameType: m.gameType,
+    progressiveType: m.progressiveType,
+    denomination: String(m.denomination),
+    softwareVersion: m.softwareVersion ?? '',
+    locationId: m.locationId ?? '',
+    status: m.status,
+  }
 }
 
-export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM)
+const INPUT_CLS =
+  'w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+
+export default function MachineForm({ onClose, onCreated, initialMachine }: MachineFormProps) {
+  const isEditMode = Boolean(initialMachine)
+  const [form, setForm] = useState<FormState>(() => toFormState(initialMachine))
   const [locations, setLocations] = useState<LocationSummary[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,41 +67,51 @@ export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
       .then((r) => r.json())
       .then((json: { data: LocationSummary[] }) => {
         setLocations(json.data)
-        if (json.data.length === 1) {
+        if (!isEditMode && !form.locationId && json.data.length === 1) {
           setForm((prev) => ({ ...prev, locationId: json.data[0].id }))
         }
       })
       .catch(() => setError('Failed to load locations'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleChange = (field: keyof FormState) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const handleChange =
+    (field: keyof FormState) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     setError(null)
     setIsSubmitting(true)
 
+    const payload = {
+      assetNumber: form.assetNumber.trim(),
+      bankNumber: form.bankNumber.trim(),
+      gameName: form.gameName.trim(),
+      gameBrand: form.gameBrand,
+      gameType: form.gameType,
+      progressiveType: form.progressiveType,
+      denomination: parseFloat(form.denomination),
+      softwareVersion: form.softwareVersion.trim() || undefined,
+      locationId: form.locationId || undefined,
+      status: form.status,
+    }
+
     try {
-      const res = await fetch('/api/machines', {
-        method: 'POST',
+      const url = isEditMode ? `/api/machines/${initialMachine!.id}` : '/api/machines'
+      const method = isEditMode ? 'PATCH' : 'POST'
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          locationId: form.locationId,
-          machineNumber: form.machineNumber ? Number(form.machineNumber) : undefined,
-          serialNumber: form.serialNumber || undefined,
-          model: form.model || undefined,
-          manufacturer: form.manufacturer || undefined,
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const json = await res.json() as { data?: MapMachine; error?: string }
 
       if (!res.ok) {
-        setError(json.error ?? 'Failed to create machine')
+        setError(json.error ?? `Failed to ${isEditMode ? 'update' : 'create'} machine`)
         return
       }
 
@@ -87,9 +125,11 @@ export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6">
+      <div className="w-full max-w-2xl rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-white">Add Machine</h2>
+          <h2 className="text-lg font-bold text-white">
+            {isEditMode ? `Edit Machine — ${initialMachine!.assetNumber}` : 'Add Machine'}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -99,38 +139,94 @@ export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Machine Name *" className="col-span-2">
-              <input required value={form.name} onChange={handleChange('name')}
-                className={INPUT_CLS} placeholder="CNC Lathe #3" />
+
+            <Field label="Asset Number *">
+              <input
+                required
+                value={form.assetNumber}
+                onChange={handleChange('assetNumber')}
+                className={INPUT_CLS}
+                placeholder="21257"
+              />
             </Field>
-            <Field label="Machine #">
-              <input type="number" value={form.machineNumber} onChange={handleChange('machineNumber')}
-                className={INPUT_CLS} placeholder="101" min="1" />
+
+            <Field label="Bank Number *">
+              <input
+                required
+                value={form.bankNumber}
+                onChange={handleChange('bankNumber')}
+                className={INPUT_CLS}
+                placeholder="7-19"
+              />
             </Field>
-            <Field label="Serial Number">
-              <input value={form.serialNumber} onChange={handleChange('serialNumber')}
-                className={INPUT_CLS} placeholder="SN-00123" />
+
+            <Field label="Game Name *" className="col-span-2">
+              <input
+                required
+                value={form.gameName}
+                onChange={handleChange('gameName')}
+                className={INPUT_CLS}
+                placeholder="Buffalo Gold"
+              />
             </Field>
-            <Field label="Model">
-              <input value={form.model} onChange={handleChange('model')}
-                className={INPUT_CLS} placeholder="Haas VF-2" />
+
+            <Field label="Game Brand *">
+              <select required value={form.gameBrand} onChange={handleChange('gameBrand')} className={INPUT_CLS}>
+                <option value="">Select brand…</option>
+                {GAME_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
             </Field>
-            <Field label="Manufacturer">
-              <input value={form.manufacturer} onChange={handleChange('manufacturer')}
-                className={INPUT_CLS} placeholder="Haas Automation" />
+
+            <Field label="Game Type *">
+              <select required value={form.gameType} onChange={handleChange('gameType')} className={INPUT_CLS}>
+                <option value="">Select type…</option>
+                {GAME_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
             </Field>
-            <Field label="Location *" className="col-span-2">
-              <select required value={form.locationId} onChange={handleChange('locationId')} className={INPUT_CLS}>
-                <option value="">Select location…</option>
+
+            <Field label="Progressive Type">
+              <select value={form.progressiveType} onChange={handleChange('progressiveType')} className={INPUT_CLS}>
+                {Object.entries(PROGRESSIVE_TYPE_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Denomination *">
+              <select required value={form.denomination} onChange={handleChange('denomination')} className={INPUT_CLS}>
+                {DENOMINATIONS.map((d) => (
+                  <option key={d} value={String(d)}>${d.toFixed(2)}</option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Software Version">
+              <input
+                value={form.softwareVersion}
+                onChange={handleChange('softwareVersion')}
+                className={INPUT_CLS}
+                placeholder="v4.23.1"
+              />
+            </Field>
+
+            <Field label="Location">
+              <select value={form.locationId} onChange={handleChange('locationId')} className={INPUT_CLS}>
+                <option value="">No location</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Notes" className="col-span-2">
-              <textarea value={form.notes} onChange={handleChange('notes')}
-                className={`${INPUT_CLS} resize-none h-20`} placeholder="Optional notes…" />
+
+            <Field label="Status">
+              <select value={form.status} onChange={handleChange('status')} className={INPUT_CLS}>
+                <option value="ONLINE">Online</option>
+                <option value="OFFLINE">Offline</option>
+                <option value="WARNING">Warning</option>
+                <option value="MAINTENANCE">Maintenance</option>
+              </select>
             </Field>
+
           </div>
 
           {error && (
@@ -138,13 +234,19 @@ export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={isSubmitting}
-              className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-              {isSubmitting ? 'Adding…' : 'Add Machine'}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? (isEditMode ? 'Saving…' : 'Adding…') : (isEditMode ? 'Save Changes' : 'Add Machine')}
             </button>
           </div>
         </form>
@@ -152,9 +254,6 @@ export default function MachineForm({ onCreated, onClose }: MachineFormProps) {
     </div>
   )
 }
-
-const INPUT_CLS =
-  'w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
 
 interface FieldProps {
   label: string

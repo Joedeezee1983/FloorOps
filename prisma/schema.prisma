@@ -20,6 +20,13 @@ enum MachineStatus {
   MAINTENANCE
 }
 
+enum ProgressiveType {
+  NONE
+  STANDALONE
+  LINKED
+  WIDE_AREA
+}
+
 enum ShiftType {
   DAY
   SWING
@@ -109,28 +116,30 @@ model Location {
 }
 
 model Machine {
-  id            String        @id @default(cuid())
-  machineNumber Int?
-  name          String
-  serialNumber  String?       @unique
-  model         String?
-  manufacturer  String?
-  status        MachineStatus @default(OFFLINE)
-  locationId    String
-  gridX         Int?
-  gridY         Int?
-  notes         String?
-  installedAt   DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id              String          @id @default(cuid())
+  assetNumber     String          @unique
+  bankNumber      String
+  gameName        String
+  gameBrand       String
+  gameType        String
+  progressiveType ProgressiveType @default(NONE)
+  denomination    Float
+  softwareVersion String?
+  status          MachineStatus   @default(ONLINE)
+  gridX           Int?
+  gridY           Int?
+  locationId      String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
-  location   Location           @relation(fields: [locationId], references: [id])
+  location   Location?          @relation(fields: [locationId], references: [id])
   statusLogs MachineStatusLog[]
 
   @@index([locationId])
   @@index([status])
-  @@index([serialNumber])
-  @@index([machineNumber])
+  @@index([assetNumber])
+  @@index([gameBrand])
+  @@index([gameType])
 }
 
 model MachineStatusLog {

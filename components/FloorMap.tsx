@@ -1,12 +1,23 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import MachineTile from '@/components/MachineTile'
 import MachineDrawer from '@/components/MachineDrawer'
 import MachineForm from '@/components/MachineForm'
 import StatusBadge from '@/components/StatusBadge'
 import { useFloorMapPolling } from '@/hooks/useFloorMapPolling'
-import { GRID_COLS, GRID_ROWS, GRID_CELL_PX, MACHINE_STATUS_LABELS, MACHINE_STATUS_STYLES } from '@/constants'
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  GRID_CELL_PX,
+  MACHINE_STATUS_LABELS,
+  MACHINE_STATUS_STYLES,
+  DEFAULT_ZOOM,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  ZOOM_STEP,
+  MINIMAP_CELL_PX,
+} from '@/constants'
 import type { MapMachine, MachineStatus, UserRole } from '@/types'
 
 export interface FloorMapProps {
@@ -18,6 +29,17 @@ interface DragState {
   machine: MapMachine
 }
 
+const MINIMAP_W = GRID_COLS * MINIMAP_CELL_PX
+const MINIMAP_H = GRID_ROWS * MINIMAP_CELL_PX
+
+// Status colors for the minimap canvas
+const MINIMAP_STATUS_COLORS: Record<MachineStatus, string> = {
+  ONLINE: '#4ade80',
+  OFFLINE: '#f87171',
+  WARNING: '#fde047',
+  MAINTENANCE: '#fb923c',
+}
+
 export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
   const { machines, lastUpdated, refreshMachines, optimisticMove, revertMove } =
     useFloorMapPolling(initialMachines)
@@ -26,10 +48,51 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
   const [dragOverCell, setDragOverCell] = useState<{ x: number; y: number } | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM)
+
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 })
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 })
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const handleScroll = () => setScrollPos({ x: el.scrollLeft, y: el.scrollTop })
+    const handleResize = () => setViewportSize({ w: el.clientWidth, h: el.clientHeight })
+
+    handleResize()
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    const ro = new ResizeObserver(handleResize)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', handleScroll)
+      ro.disconnect()
+    }
+  }, [])
+
+  const cellPx = Math.max(4, Math.round(GRID_CELL_PX * zoomLevel))
 
   const isAdmin = userRole === 'ADMIN'
   const machineGrid = buildGrid(machines)
   const unplaced = machines.filter((m) => m.gridX === null || m.gridY === null)
+
+  const zoomIn = useCallback(() => {
+    setZoomLevel((prev) => Math.min(MAX_ZOOM, parseFloat((prev + ZOOM_STEP).toFixed(2))))
+  }, [])
+
+  const zoomOut = useCallback(() => {
+    setZoomLevel((prev) => Math.max(MIN_ZOOM, parseFloat((prev - ZOOM_STEP).toFixed(2))))
+  }, [])
+
+  const fitToScreen = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const zoomForWidth = el.clientWidth / (GRID_COLS * GRID_CELL_PX)
+    const zoomForHeight = el.clientHeight / (GRID_ROWS * GRID_CELL_PX)
+    const fit = Math.min(zoomForWidth, zoomForHeight, MAX_ZOOM)
+    setZoomLevel(Math.max(MIN_ZOOM, parseFloat(fit.toFixed(2))))
+  }, [])
 
   const handleDragStart = useCallback((machine: MapMachine) => {
     setDragState({ machine })
@@ -46,7 +109,6 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
     const prevX = machine.gridX
     const prevY = machine.gridY
 
-    // Reject drops onto occupied cells (other than the machine's own cell)
     const occupant = machineGrid.get(cellKey(targetX, targetY))
     if (occupant && occupant.id !== machine.id) return
 
@@ -65,22 +127,24 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
     }
   }, [dragState, machineGrid, optimisticMove, revertMove])
 
-  const handleStatusChanged = useCallback((id: string, status: MachineStatus) => {
-    optimisticMove(id, machines.find((m) => m.id === id)?.gridX ?? 0, machines.find((m) => m.id === id)?.gridY ?? 0)
-    // Refresh so poll picks up the new status
+  const handleStatusChanged = useCallback((id: string, _status: MachineStatus) => {
     void refreshMachines()
-  }, [machines, optimisticMove, refreshMachines])
+  }, [refreshMachines])
 
-  const handleMachineAdded = useCallback((machine: MapMachine) => {
+  const handleMachineAdded = useCallback((_machine: MapMachine) => {
     setShowAddForm(false)
     void refreshMachines()
   }, [refreshMachines])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <MapHeader
         isAdmin={isAdmin}
         lastUpdated={lastUpdated}
+        zoomLevel={zoomLevel}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onFitToScreen={fitToScreen}
         onAddMachine={() => setShowAddForm(true)}
       />
 
@@ -94,10 +158,13 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
         />
       )}
 
-      <div className="overflow-auto flex-1 p-4">
+      <div
+        ref={scrollRef}
+        className="overflow-auto flex-1 p-4"
+      >
         <div
           className="inline-grid border border-gray-800 rounded-lg overflow-hidden"
-          style={{ gridTemplateColumns: `repeat(${GRID_COLS}, ${GRID_CELL_PX}px)` }}
+          style={{ gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)` }}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
               setDragOverCell(null)
@@ -120,6 +187,7 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
                   isDragging={!!dragState}
                   isHovered={isHovered}
                   isOccupied={isOccupied}
+                  cellPx={cellPx}
                   onDragOver={() => setDragOverCell({ x, y })}
                   onDrop={() => handleDrop(x, y)}
                   onDragStart={handleDragStart}
@@ -133,6 +201,13 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
       </div>
 
       <MapLegend />
+
+      <MinimapPanel
+        machines={machines}
+        cellPx={cellPx}
+        scrollPos={scrollPos}
+        viewportSize={viewportSize}
+      />
 
       <MachineDrawer
         machineId={selectedId}
@@ -156,26 +231,61 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
 interface MapHeaderProps {
   isAdmin: boolean
   lastUpdated: Date
+  zoomLevel: number
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onFitToScreen: () => void
   onAddMachine: () => void
 }
 
-function MapHeader({ isAdmin, lastUpdated, onAddMachine }: MapHeaderProps) {
+function MapHeader({ isAdmin, lastUpdated, zoomLevel, onZoomIn, onZoomOut, onFitToScreen, onAddMachine }: MapHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-      <div>
+    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 gap-4">
+      <div className="shrink-0">
         <h1 className="text-2xl font-bold text-white">Floor Map</h1>
         <p className="text-xs text-gray-500 mt-0.5">
-          Updated {lastUpdated.toLocaleTimeString()} · polls every 10s
+          Updated {lastUpdated.toLocaleTimeString()} · polls every 10s · {GRID_COLS}×{GRID_ROWS} grid
         </p>
       </div>
-      {isAdmin && (
-        <button
-          onClick={onAddMachine}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
-        >
-          <span className="text-lg leading-none">+</span> Add Machine
-        </button>
-      )}
+      <div className="flex items-center gap-3">
+        <ZoomControls
+          zoomLevel={zoomLevel}
+          onZoomIn={onZoomIn}
+          onZoomOut={onZoomOut}
+          onFitToScreen={onFitToScreen}
+        />
+        {isAdmin && (
+          <button
+            onClick={onAddMachine}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+          >
+            <span className="text-lg leading-none">+</span> Add Machine
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface ZoomControlsProps {
+  zoomLevel: number
+  onZoomIn: () => void
+  onZoomOut: () => void
+  onFitToScreen: () => void
+}
+
+function ZoomControls({ zoomLevel, onZoomIn, onZoomOut, onFitToScreen }: ZoomControlsProps) {
+  const BTN = 'px-2 py-1 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded hover:bg-gray-700 transition-colors'
+  return (
+    <div className="flex items-center gap-1">
+      <button onClick={onZoomOut} className={BTN} title="Zoom out">−</button>
+      <span className="text-xs text-gray-400 font-mono w-10 text-center">
+        {Math.round(zoomLevel * 100)}%
+      </span>
+      <button onClick={onZoomIn} className={BTN} title="Zoom in">+</button>
+      <button onClick={onFitToScreen} className={`${BTN} px-3 ml-1`} title="Fit to screen">
+        Fit
+      </button>
     </div>
   )
 }
@@ -219,6 +329,7 @@ interface GridCellProps {
   isDragging: boolean
   isHovered: boolean
   isOccupied: boolean
+  cellPx: number
   onDragOver: () => void
   onDrop: () => void
   onDragStart: (m: MapMachine) => void
@@ -227,7 +338,7 @@ interface GridCellProps {
 }
 
 function GridCell({
-  x, y, machine, isAdmin, isDragging, isHovered, isOccupied,
+  x, y, machine, isAdmin, isDragging, isHovered, isOccupied, cellPx,
   onDragOver, onDrop, onDragStart, onDragEnd, onClick,
 }: GridCellProps) {
   const canDrop = isDragging && !isOccupied
@@ -237,9 +348,11 @@ function GridCell({
     ? 'bg-red-900/30 border-red-700'
     : ''
 
+  const showCoord = cellPx >= 32
+
   return (
     <div
-      style={{ width: GRID_CELL_PX, height: GRID_CELL_PX }}
+      style={{ width: cellPx, height: cellPx }}
       className={`border-r border-b border-gray-800/60 relative transition-colors duration-75 ${dropHighlight}`}
       onDragOver={(e) => { e.preventDefault(); onDragOver() }}
       onDrop={(e) => { e.preventDefault(); onDrop() }}
@@ -248,12 +361,13 @@ function GridCell({
         <MachineTile
           machine={machine}
           isDraggable={isAdmin}
+          cellPx={cellPx}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
           onClick={onClick}
         />
       )}
-      {!machine && (
+      {!machine && showCoord && (
         <div className="absolute bottom-0.5 right-1 text-[8px] text-gray-800 select-none">
           {x},{y}
         </div>
@@ -272,6 +386,70 @@ function MapLegend() {
           <span className="text-xs text-gray-400">{MACHINE_STATUS_LABELS[s]}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+interface MinimapPanelProps {
+  machines: MapMachine[]
+  cellPx: number
+  scrollPos: { x: number; y: number }
+  viewportSize: { w: number; h: number }
+}
+
+function MinimapPanel({ machines, cellPx, scrollPos, viewportSize }: MinimapPanelProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.fillStyle = '#111827'
+    ctx.fillRect(0, 0, MINIMAP_W, MINIMAP_H)
+
+    for (const m of machines) {
+      if (m.gridX === null || m.gridY === null) continue
+      ctx.fillStyle = MINIMAP_STATUS_COLORS[m.status]
+      ctx.fillRect(
+        m.gridX * MINIMAP_CELL_PX,
+        m.gridY * MINIMAP_CELL_PX,
+        MINIMAP_CELL_PX,
+        MINIMAP_CELL_PX
+      )
+    }
+  }, [machines])
+
+  const fullW = GRID_COLS * cellPx
+  const fullH = GRID_ROWS * cellPx
+  const scaleX = MINIMAP_W / fullW
+  const scaleY = MINIMAP_H / fullH
+
+  const indicatorLeft = Math.round(scrollPos.x * scaleX)
+  const indicatorTop = Math.round(scrollPos.y * scaleY)
+  const indicatorW = Math.min(Math.round(viewportSize.w * scaleX), MINIMAP_W)
+  const indicatorH = Math.min(Math.round(viewportSize.h * scaleY), MINIMAP_H)
+
+  return (
+    <div className="absolute bottom-14 right-4 z-30 rounded-lg border border-gray-700 bg-gray-950/90 backdrop-blur-sm shadow-xl overflow-hidden">
+      <p className="text-[9px] text-gray-600 uppercase tracking-wider px-2 pt-1.5 pb-1">
+        {GRID_COLS}×{GRID_ROWS} minimap
+      </p>
+      <div className="relative">
+        <canvas ref={canvasRef} width={MINIMAP_W} height={MINIMAP_H} />
+        {viewportSize.w > 0 && (
+          <div
+            className="absolute border border-blue-400/80 bg-blue-400/10 pointer-events-none"
+            style={{
+              left: indicatorLeft,
+              top: indicatorTop,
+              width: indicatorW,
+              height: indicatorH,
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 }

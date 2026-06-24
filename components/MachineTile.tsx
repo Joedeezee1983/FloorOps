@@ -6,6 +6,7 @@ import type { MapMachine } from '@/types'
 export interface MachineTileProps {
   machine: MapMachine
   isDraggable: boolean
+  cellPx?: number
   onDragStart: (machine: MapMachine) => void
   onDragEnd: () => void
   onClick: (machine: MapMachine) => void
@@ -14,12 +15,14 @@ export interface MachineTileProps {
 export default function MachineTile({
   machine,
   isDraggable,
+  cellPx = GRID_CELL_PX,
   onDragStart,
   onDragEnd,
   onClick,
 }: MachineTileProps) {
   const styles = MACHINE_STATUS_STYLES[machine.status]
-  const label = machine.machineNumber != null ? `M-${machine.machineNumber}` : machine.id.slice(-4)
+  const showLabel = cellPx >= 28
+  const showName = cellPx >= 48
 
   return (
     <div
@@ -27,8 +30,8 @@ export default function MachineTile({
       onDragStart={() => onDragStart(machine)}
       onDragEnd={onDragEnd}
       onClick={() => onClick(machine)}
-      title={machine.name}
-      style={{ width: GRID_CELL_PX, height: GRID_CELL_PX }}
+      title={`${machine.assetNumber} — ${machine.gameName}`}
+      style={{ width: cellPx, height: cellPx }}
       className={`
         flex flex-col items-center justify-center gap-0.5
         rounded border cursor-pointer select-none
@@ -38,11 +41,23 @@ export default function MachineTile({
         ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}
       `}
     >
-      <span className={`h-2 w-2 rounded-full shrink-0 ${styles.dot}`} />
-      <span className="text-[10px] font-bold leading-none">{label}</span>
-      <span className="text-[9px] leading-none text-center px-0.5 truncate max-w-full opacity-80">
-        {machine.name}
-      </span>
+      <span className={`rounded-full shrink-0 ${styles.dot}`}
+        style={{ width: Math.max(4, cellPx * 0.1), height: Math.max(4, cellPx * 0.1) }}
+      />
+      {showLabel && (
+        <span className="font-bold leading-none truncate max-w-full px-0.5"
+          style={{ fontSize: Math.max(7, cellPx * 0.16) }}
+        >
+          {machine.assetNumber}
+        </span>
+      )}
+      {showName && (
+        <span className="leading-none text-center px-0.5 truncate max-w-full opacity-80"
+          style={{ fontSize: Math.max(6, cellPx * 0.13) }}
+        >
+          {machine.gameName}
+        </span>
+      )}
     </div>
   )
 }

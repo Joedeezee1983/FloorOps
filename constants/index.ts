@@ -45,10 +45,58 @@ export const MACHINE_STATUS_STYLES = {
   },
 } as const
 
-export const GRID_COLS = 20
-export const GRID_ROWS = 12
+// Floor map grid — 100×70 supports Graton-scale floors (5700+ machines)
+export const GRID_COLS = 100
+export const GRID_ROWS = 70
 export const GRID_CELL_PX = 64
 export const MAP_POLL_INTERVAL_MS = 10000
+
+// Floor map zoom
+export const DEFAULT_ZOOM = 0.25
+export const MIN_ZOOM = 0.1
+export const MAX_ZOOM = 1.5
+export const ZOOM_STEP = 0.05
+export const MINIMAP_CELL_PX = 3
+
+// Machine registry
+export const MACHINES_PER_PAGE = 50
+
+export const GAME_BRANDS = [
+  'Aristocrat',
+  'IGT',
+  'Konami',
+  'Everi',
+  'Ainsworth',
+  'Scientific Games',
+  'Other',
+] as const
+
+export const GAME_TYPES = [
+  'Slot',
+  'Video Poker',
+  'Kiosk',
+  'Table Game',
+  'Other',
+] as const
+
+export const DENOMINATIONS = [
+  0.01, 0.02, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 100.0,
+] as const
+
+export const PROGRESSIVE_TYPE_LABELS: Record<string, string> = {
+  NONE: 'None',
+  STANDALONE: 'Standalone',
+  LINKED: 'Linked',
+  WIDE_AREA: 'Wide Area',
+}
+
+export const CSV_TEMPLATE_HEADER =
+  'assetNumber,bankNumber,gameName,gameBrand,gameType,progressiveType,denomination,softwareVersion'
+
+export const CSV_TEMPLATE_EXAMPLE =
+  '21257,7-19,Buffalo Gold,Aristocrat,Slot,LINKED,0.01,v4.23.1'
+
+export const VALID_PROGRESSIVE_TYPES = new Set(['NONE', 'STANDALONE', 'LINKED', 'WIDE_AREA'])
 
 export const PROTECTED_ROUTES = {
   ADMIN_ONLY: ['/admin'],
