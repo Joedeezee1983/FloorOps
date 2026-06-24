@@ -60,6 +60,10 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
   const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 })
   const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 })
 
+  const isPanningRef = useRef(false)
+  const panStartRef = useRef({ mouseX: 0, mouseY: 0, scrollX: 0, scrollY: 0 })
+  const [isGrabbing, setIsGrabbing] = useState(false)
+
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -74,6 +78,31 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
     return () => {
       el.removeEventListener('scroll', handleScroll)
       ro.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isPanningRef.current) return
+      const el = scrollRef.current
+      if (!el) return
+      const dx = e.clientX - panStartRef.current.mouseX
+      const dy = e.clientY - panStartRef.current.mouseY
+      el.scrollLeft = panStartRef.current.scrollX - dx
+      el.scrollTop = panStartRef.current.scrollY - dy
+    }
+
+    const stopPan = () => {
+      if (!isPanningRef.current) return
+      isPanningRef.current = false
+      setIsGrabbing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', stopPan)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', stopPan)
     }
   }, [])
 
@@ -100,6 +129,24 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
     const zoomForHeight = el.clientHeight / (GRID_ROWS * GRID_CELL_PX)
     const fit = Math.min(zoomForWidth, zoomForHeight, MAX_ZOOM)
     setZoomLevel(Math.max(MIN_ZOOM, parseFloat(fit.toFixed(2))))
+  }, [])
+
+  const startPan = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Don't capture mousedown on draggable machine tiles — let HTML5 drag proceed
+    const target = e.target as HTMLElement
+    if (target.closest('[draggable="true"]')) return
+
+    const el = scrollRef.current
+    if (!el) return
+
+    isPanningRef.current = true
+    setIsGrabbing(true)
+    panStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      scrollX: el.scrollLeft,
+      scrollY: el.scrollTop,
+    }
   }, [])
 
   const handleDragStart = useCallback((machine: MapMachine) => {
@@ -136,6 +183,11 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
   }, [dragState, machineGrid, optimisticMove, revertMove])
 
   const handleStatusChanged = useCallback((_id: string, _status: MachineStatus) => {
+    void refreshMachines()
+  }, [refreshMachines])
+
+  const handleRemovedFromMap = useCallback((_id: string) => {
+    setSelectedId(null)
     void refreshMachines()
   }, [refreshMachines])
 
@@ -179,7 +231,11 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         />
       )}
 
-      <div ref={scrollRef} className="overflow-auto flex-1 p-4">
+      <div
+        ref={scrollRef}
+        className={`overflow-auto flex-1 p-4 ${isGrabbing ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+        onMouseDown={startPan}
+      >
         <div className="relative" style={{ width: gridW, height: gridH }}>
           {/* Blueprint overlay — sits behind the grid cells */}
           {blueprint && showBlueprint && (
@@ -246,6 +302,7 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         isAdmin={isAdmin}
         onClose={() => setSelectedId(null)}
         onStatusChanged={handleStatusChanged}
+        onRemovedFromMap={handleRemovedFromMap}
       />
 
       {showAddForm && (

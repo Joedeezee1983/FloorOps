@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import {
   getMachineDetail,
   updateMachinePosition,
+  clearMachinePosition,
   updateMachineStatus,
   updateMachineFields,
   deleteMachine,
@@ -99,6 +100,12 @@ async function handlePositionUpdate(
   id: string,
   body: Record<string, unknown>
 ): Promise<NextResponse> {
+  // null on both axes means "remove from map" — machine returns to unplaced sidebar
+  if (body.gridX === null && body.gridY === null) {
+    const machine = await clearMachinePosition(id)
+    return NextResponse.json({ data: machine })
+  }
+
   const gridX = Number(body.gridX)
   const gridY = Number(body.gridY)
 

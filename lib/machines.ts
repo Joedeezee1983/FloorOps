@@ -280,6 +280,18 @@ export async function updateMachinePosition(
 }
 
 /**
+ * Clears a machine's grid position, returning it to the unplaced sidebar.
+ */
+export async function clearMachinePosition(id: string): Promise<MapMachine> {
+  const machine = await prisma.machine.update({
+    where: { id },
+    data: { gridX: null, gridY: null },
+    select: MAP_MACHINE_SELECT,
+  })
+  return { ...machine, activeShiftTask: null }
+}
+
+/**
  * Updates a machine's status and appends a log entry recording the change.
  */
 export async function updateMachineStatus(
