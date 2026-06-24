@@ -53,6 +53,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const shift = await createShift({
       type: body.type as ShiftType,
+      status: 'ACTIVE',
       locationId: body.locationId as string,
       supervisorId: session.user.id,
       startTime,
