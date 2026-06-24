@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import StatusBadge from '@/components/StatusBadge'
-import { TASK_TYPE_LABELS, TASK_STATUS_LABELS, TASK_STATUS_STYLES, SHIFT_HOURS } from '@/constants'
+import {
+  TASK_TYPE_LABELS,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_STYLES,
+  TASK_SECTION_LABELS,
+  TASK_SECTION_ORDER,
+  SHIFT_HOURS,
+} from '@/constants'
 import type {
   ShiftSummary,
   ShiftDetail,
@@ -10,17 +17,20 @@ import type {
   LocationSummary,
   TaskType,
   TaskStatus,
+  TaskSection,
   ShiftType,
   UserRole,
   MachineSearchResult,
+  UserSummary,
 } from '@/types'
 
 export interface ShiftDashboardProps {
   userRole: UserRole
   userName: string
+  userId: string
 }
 
-export default function ShiftDashboard({ userRole, userName }: ShiftDashboardProps) {
+export default function ShiftDashboard({ userRole, userName, userId }: ShiftDashboardProps) {
   const isSupervisorOrAbove = userRole === 'ADMIN' || userRole === 'SUPERVISOR'
 
   const [shifts, setShifts] = useState<ShiftSummary[]>([])
@@ -30,6 +40,8 @@ export default function ShiftDashboard({ userRole, userName }: ShiftDashboardPro
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isEndingShift, setIsEndingShift] = useState(false)
+  const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false)
 
   const loadShifts = useCallback(async () => {
     setIsLoadingShifts(true)
@@ -89,6 +101,31 @@ export default function ShiftDashboard({ userRole, userName }: ShiftDashboardPro
     }
   }, [])
 
+  const handleEndShift = useCallback(async (shiftId: string) => {
+    setIsEndingShift(true)
+    try {
+      const endRes = await fetch(`/api/shifts/${shiftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'end' }),
+      })
+      if (!endRes.ok) return
+      const endJson = await endRes.json() as { data: ShiftDetail }
+      setSelectedShift(endJson.data)
+      void loadShifts()
+    } finally {
+      setIsEndingShift(false)
+    }
+
+    setIsGeneratingBriefing(true)
+    try {
+      await fetch(`/api/shifts/${shiftId}/briefing`, { method: 'POST' })
+    } finally {
+      setIsGeneratingBriefing(false)
+      void loadShiftDetail(shiftId)
+    }
+  }, [loadShifts, loadShiftDetail])
+
   const downMachineCount = selectedShift?.tasks.filter(
     (t) => t.type === 'DOWN_MACHINE' && t.status !== 'RESOLVED'
   ).length ?? 0
@@ -101,7 +138,7 @@ export default function ShiftDashboard({ userRole, userName }: ShiftDashboardPro
           <div>
             <h1 className="text-3xl font-bold text-white">Shifts</h1>
             <p className="mt-1 text-gray-400">
-              {isLoadingShifts ? 'Loading…' : `${shifts.length} shift${shifts.length !== 1 ? 's' : ''}`}
+              {isLoadingShifts ? 'Loading...' : `${shifts.length} shift${shifts.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           {isSupervisorOrAbove && (
@@ -164,8 +201,11 @@ export default function ShiftDashboard({ userRole, userName }: ShiftDashboardPro
               shift={selectedShift}
               downMachineCount={downMachineCount}
               isSupervisorOrAbove={isSupervisorOrAbove}
+              isEndingShift={isEndingShift}
+              isGeneratingBriefing={isGeneratingBriefing}
               onLogTask={() => setShowTaskForm(true)}
               onTaskStatusUpdate={handleTaskStatusUpdate}
+              onEndShift={handleEndShift}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-600">
@@ -178,6 +218,7 @@ export default function ShiftDashboard({ userRole, userName }: ShiftDashboardPro
       {showCreateForm && (
         <CreateShiftModal
           userName={userName}
+          userId={userId}
           onCreated={handleShiftCreated}
           onClose={() => setShowCreateForm(false)}
         />
@@ -240,15 +281,22 @@ function ShiftDetailView({
   shift,
   downMachineCount,
   isSupervisorOrAbove,
+  isEndingShift,
+  isGeneratingBriefing,
   onLogTask,
   onTaskStatusUpdate,
+  onEndShift,
 }: {
   shift: ShiftDetail
   downMachineCount: number
   isSupervisorOrAbove: boolean
+  isEndingShift: boolean
+  isGeneratingBriefing: boolean
   onLogTask: () => void
   onTaskStatusUpdate: (taskId: string, status: TaskStatus) => void
+  onEndShift: (shiftId: string) => void
 }) {
+  const [showEndConfirm, setShowEndConfirm] = useState(false)
   const start = new Date(shift.startTime)
   const end = new Date(shift.endTime)
 
@@ -262,19 +310,46 @@ function ShiftDetailView({
             <ShiftStatusBadge status={shift.status} />
           </div>
           <p className="text-gray-400 text-sm">
-            {start.toLocaleDateString()} · {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {start.toLocaleDateString()} &middot; {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &mdash; {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             {shift.locationName && ` · ${shift.locationName}`}
             {shift.supervisorName && ` · ${shift.supervisorName}`}
           </p>
+
+          {/* Staff on shift */}
+          {shift.staff.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Staff: {shift.staff.map((s) => s.name ?? 'Unknown').join(', ')}
+            </p>
+          )}
         </div>
 
-        {/* Down machine badge */}
-        {downMachineCount > 0 && (
-          <div className="flex items-center gap-2 bg-red-900/40 border border-red-700 rounded-lg px-3 py-2">
-            <span className="text-red-300 text-base">🔧</span>
-            <span className="text-sm font-semibold text-red-300">{downMachineCount} machine{downMachineCount !== 1 ? 's' : ''} down</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {downMachineCount > 0 && (
+            <div className="flex items-center gap-2 bg-red-900/40 border border-red-700 rounded-lg px-3 py-2">
+              <span className="text-red-300 text-sm font-semibold">{downMachineCount} machine{downMachineCount !== 1 ? 's' : ''} down</span>
+            </div>
+          )}
+
+          {shift.status === 'COMPLETED' && (
+            <a
+              href={`/api/shifts/${shift.id}/export`}
+              download
+              className="px-3 py-2 text-sm font-semibold bg-gray-700 text-gray-200 border border-gray-600 rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Export PDF
+            </a>
+          )}
+
+          {isSupervisorOrAbove && shift.status === 'ACTIVE' && (
+            <button
+              onClick={() => setShowEndConfirm(true)}
+              disabled={isEndingShift}
+              className="px-3 py-2 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isEndingShift ? 'Ending...' : 'End Shift'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tasks toolbar */}
@@ -282,7 +357,7 @@ function ShiftDetailView({
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
           Tasks ({shift.tasks.length})
         </p>
-        {isSupervisorOrAbove && (
+        {isSupervisorOrAbove && shift.status === 'ACTIVE' && (
           <button
             onClick={onLogTask}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
@@ -309,6 +384,32 @@ function ShiftDetailView({
           ))}
         </div>
       )}
+
+      {/* AI Briefing */}
+      {isGeneratingBriefing && (
+        <div className="mt-8 rounded-xl border border-blue-800 bg-blue-900/20 p-6">
+          <p className="text-sm font-semibold text-blue-300 mb-1">Generating AI shift summary...</p>
+          <p className="text-xs text-blue-400">This usually takes 5-10 seconds.</p>
+        </div>
+      )}
+
+      {!isGeneratingBriefing && shift.aiSummary && (
+        <div className="mt-8 rounded-xl border border-gray-700 bg-gray-900/40 p-6">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">AI Shift Summary</p>
+          <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">{shift.aiSummary}</div>
+        </div>
+      )}
+
+      {/* End shift confirmation */}
+      {showEndConfirm && (
+        <EndShiftConfirmDialog
+          onConfirm={() => {
+            setShowEndConfirm(false)
+            onEndShift(shift.id)
+          }}
+          onCancel={() => setShowEndConfirm(false)}
+        />
+      )}
     </div>
   )
 }
@@ -326,6 +427,41 @@ function ShiftStatusBadge({ status }: { status: string }) {
   )
 }
 
+function EndShiftConfirmDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6">
+        <h3 className="text-lg font-bold text-white mb-2">End this shift?</h3>
+        <p className="text-sm text-gray-400 mb-6">
+          The shift will be marked as Completed and an AI summary will be generated. Machines still offline will remain offline.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-5 py-2 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-500 transition-colors"
+          >
+            End Shift
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Task card ────────────────────────────────────────────────────────────────
+
 function TaskCard({
   task,
   isSupervisorOrAbove,
@@ -341,12 +477,13 @@ function TaskCard({
   return (
     <div className={`rounded-xl border p-4 ${isDown && isActive ? 'border-red-800 bg-red-900/10' : 'border-gray-800 bg-gray-900/40'}`}>
       <div className="flex items-start gap-3">
-        {isDown && <span className="text-orange-300 text-lg mt-0.5 shrink-0">🔧</span>}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
               {TASK_TYPE_LABELS[task.type] ?? task.type}
             </span>
+            <span className="text-xs text-gray-600">|</span>
+            <span className="text-xs text-gray-500">{TASK_SECTION_LABELS[task.section] ?? task.section}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${TASK_STATUS_STYLES[task.status]}`}>
               {TASK_STATUS_LABELS[task.status] ?? task.status}
             </span>
@@ -371,7 +508,6 @@ function TaskCard({
           </div>
         </div>
 
-        {/* Action buttons */}
         {isSupervisorOrAbove && task.status !== 'RESOLVED' && (
           <div className="flex flex-col gap-1.5 shrink-0">
             {isDown && task.status === 'PENDING' && (
@@ -399,10 +535,12 @@ function TaskCard({
 
 function CreateShiftModal({
   userName,
+  userId,
   onCreated,
   onClose,
 }: {
   userName: string
+  userId: string
   onCreated: (shift: ShiftDetail) => void
   onClose: () => void
 }) {
@@ -411,6 +549,8 @@ function CreateShiftModal({
   const [locations, setLocations] = useState<LocationSummary[]>([])
   const [headcount, setHeadcount] = useState('')
   const [briefing, setBriefing] = useState('')
+  const [users, setUsers] = useState<UserSummary[]>([])
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([userId])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -422,7 +562,19 @@ function CreateShiftModal({
         if (json.data?.length === 1) setLocationId(json.data[0].id)
       })
       .catch(() => undefined)
+
+    fetch('/api/users')
+      .then((r) => r.json())
+      .then((json: { data: UserSummary[] }) => setUsers(json.data ?? []))
+      .catch(() => undefined)
   }, [])
+
+  const toggleUser = (id: string) => {
+    if (id === userId) return // current user cannot be deselected
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
 
   const handleSubmit = async (): Promise<void> => {
     if (!locationId) { setError('Please select a location.'); return }
@@ -449,6 +601,7 @@ function CreateShiftModal({
           headcount: headcount ? parseInt(headcount, 10) : 0,
           briefing: briefing || undefined,
           status: 'ACTIVE',
+          staffIds: selectedUserIds,
         }),
       })
 
@@ -462,8 +615,8 @@ function CreateShiftModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h2 className="text-lg font-bold text-white">Start New Shift</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -500,7 +653,7 @@ function CreateShiftModal({
               onChange={(e) => setLocationId(e.target.value)}
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
             >
-              <option value="">Select a location…</option>
+              <option value="">Select a location...</option>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
               ))}
@@ -519,13 +672,48 @@ function CreateShiftModal({
             />
           </div>
 
+          {/* Staff selection */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+              Staff on Shift
+            </label>
+            {users.length === 0 ? (
+              <p className="text-xs text-gray-500">Loading staff...</p>
+            ) : (
+              <div className="rounded-lg border border-gray-700 bg-gray-800 divide-y divide-gray-700 max-h-44 overflow-y-auto">
+                {users.map((user) => {
+                  const isCurrentUser = user.id === userId
+                  const isChecked = selectedUserIds.includes(user.id)
+                  return (
+                    <label
+                      key={user.id}
+                      className={`flex items-center gap-3 px-3 py-2.5 ${isCurrentUser ? 'cursor-default' : 'cursor-pointer hover:bg-gray-700/50 transition-colors'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        disabled={isCurrentUser}
+                        onChange={() => toggleUser(user.id)}
+                        className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-0 focus:ring-offset-0 disabled:opacity-60"
+                      />
+                      <span className="text-sm text-white flex-1 truncate">{user.name ?? user.email}</span>
+                      {isCurrentUser && (
+                        <span className="text-xs text-blue-400 shrink-0">You</span>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Briefing notes (optional)</label>
             <textarea
               value={briefing}
               onChange={(e) => setBriefing(e.target.value)}
               rows={3}
-              placeholder="Pre-shift briefing notes…"
+              placeholder="Pre-shift briefing notes..."
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
             />
           </div>
@@ -535,14 +723,14 @@ function CreateShiftModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSubmitting ? 'Starting…' : 'Start Shift'}
+            {isSubmitting ? 'Starting...' : 'Start Shift'}
           </button>
         </div>
       </div>
@@ -561,7 +749,8 @@ function LogTaskModal({
   onCreated: (task: ShiftTaskDetail) => void
   onClose: () => void
 }) {
-  const [taskType, setTaskType] = useState<TaskType>('DOWN_MACHINE')
+  const [section, setSection] = useState<TaskSection>('MISCELLANEOUS')
+  const [taskType, setTaskType] = useState<TaskType>('GENERAL')
   const [description, setDescription] = useState('')
   const [assetQuery, setAssetQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MachineSearchResult[]>([])
@@ -574,6 +763,13 @@ function LogTaskModal({
   useEffect(() => {
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
   }, [])
+
+  // PRE_EXISTING_DOWN forces DOWN_MACHINE task type
+  useEffect(() => {
+    if (section === 'PRE_EXISTING_DOWN') setTaskType('DOWN_MACHINE')
+  }, [section])
+
+  const showMachineSearch = taskType === 'DOWN_MACHINE'
 
   const handleAssetQueryChange = (q: string) => {
     setAssetQuery(q)
@@ -613,6 +809,7 @@ function LogTaskModal({
         body: JSON.stringify({
           shiftId,
           type: taskType,
+          section,
           description: description.trim(),
           machineId: selectedMachine?.id ?? undefined,
         }),
@@ -630,8 +827,8 @@ function LogTaskModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h2 className="text-lg font-bold text-white">Log Shift Task</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -641,24 +838,44 @@ function LogTaskModal({
         </div>
 
         <div className="px-6 py-5 space-y-4">
-          {/* Task type */}
+          {/* Section selector */}
           <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Task type</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Section</label>
             <div className="grid grid-cols-3 gap-2">
-              {TASK_TYPES.map((t) => (
+              {TASK_SECTION_ORDER.map((s) => (
                 <button
-                  key={t}
-                  onClick={() => setTaskType(t)}
-                  className={`py-2 px-1 text-xs font-medium rounded-lg border transition-colors leading-tight ${taskType === t ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'}`}
+                  key={s}
+                  onClick={() => setSection(s)}
+                  className={`py-2 px-1 text-xs font-medium rounded-lg border transition-colors leading-tight ${section === s ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'}`}
                 >
-                  {TASK_TYPE_LABELS[t]}
+                  {TASK_SECTION_LABELS[s]}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Task type (disabled when section forces DOWN_MACHINE) */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Task type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {TASK_TYPES.map((t) => {
+                const isForced = section === 'PRE_EXISTING_DOWN' && t !== 'DOWN_MACHINE'
+                return (
+                  <button
+                    key={t}
+                    onClick={() => !isForced && setTaskType(t)}
+                    disabled={isForced}
+                    className={`py-2 px-1 text-xs font-medium rounded-lg border transition-colors leading-tight ${taskType === t ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'} disabled:opacity-30 disabled:cursor-not-allowed`}
+                  >
+                    {TASK_TYPE_LABELS[t]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {/* Asset number search (only for DOWN_MACHINE) */}
-          {taskType === 'DOWN_MACHINE' && (
+          {showMachineSearch && (
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
                 Asset number
@@ -668,11 +885,11 @@ function LogTaskModal({
                   type="text"
                   value={assetQuery}
                   onChange={(e) => handleAssetQueryChange(e.target.value)}
-                  placeholder="Search by asset # or game name…"
+                  placeholder="Search by asset # or game name..."
                   className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                 />
                 {isSearching && (
-                  <div className="absolute right-3 top-2.5 text-xs text-gray-500">Searching…</div>
+                  <div className="absolute right-3 top-2.5 text-xs text-gray-500">Searching...</div>
                 )}
                 {searchResults.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 shadow-xl overflow-hidden">
@@ -721,7 +938,7 @@ function LogTaskModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="Describe the issue or task…"
+              placeholder="Describe the issue or task..."
               className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
             />
           </div>
@@ -731,14 +948,14 @@ function LogTaskModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">
           <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
             className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSubmitting ? 'Logging…' : 'Log Task'}
+            {isSubmitting ? 'Logging...' : 'Log Task'}
           </button>
         </div>
       </div>

@@ -47,6 +47,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'startTime and endTime must be valid ISO dates' }, { status: 400 })
     }
 
+    const staffIds = Array.isArray(body.staffIds)
+      ? (body.staffIds as unknown[]).filter((id): id is string => typeof id === 'string')
+      : [session.user.id]
+
     const shift = await createShift({
       type: body.type as ShiftType,
       locationId: body.locationId as string,
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       headcount: typeof body.headcount === 'number' ? body.headcount : 0,
       briefing: typeof body.briefing === 'string' ? body.briefing || undefined : undefined,
       notes: typeof body.notes === 'string' ? body.notes || undefined : undefined,
+      staffIds,
     })
 
     return NextResponse.json({ data: shift }, { status: 201 })

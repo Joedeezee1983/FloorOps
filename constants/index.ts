@@ -96,6 +96,22 @@ export const TASK_TYPE_LABELS: Record<string, string> = {
   MAINTENANCE_REQUEST: 'Maintenance Request',
 }
 
+export const TASK_SECTION_LABELS: Record<string, string> = {
+  PRE_EXISTING_DOWN: 'Pre-Existing Down',
+  FLOOR_GAMES: 'Floor Games',
+  KIOSKS: 'Kiosks',
+  BENCH_OFFICE: 'Bench/Office',
+  MISCELLANEOUS: 'Miscellaneous',
+}
+
+export const TASK_SECTION_ORDER = [
+  'PRE_EXISTING_DOWN',
+  'FLOOR_GAMES',
+  'KIOSKS',
+  'BENCH_OFFICE',
+  'MISCELLANEOUS',
+] as const
+
 export const TASK_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   IN_PROGRESS: 'In Progress',

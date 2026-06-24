@@ -6,9 +6,10 @@ import type {
   ProgressiveType,
   TaskType,
   TaskStatus,
+  TaskSection,
 } from '@prisma/client'
 
-export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus }
+export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus, TaskSection }
 
 export interface SessionUser {
   id: string
@@ -166,10 +167,16 @@ export interface ShiftSummary {
   downMachineCount: number
 }
 
+export interface ShiftStaffMember {
+  userId: string
+  name: string | null
+}
+
 export interface ShiftTaskDetail {
   id: string
   shiftId: string
   type: TaskType
+  section: TaskSection
   description: string
   status: TaskStatus
   machineId: string | null
@@ -199,6 +206,8 @@ export interface ShiftDetail {
   notes: string | null
   createdAt: string
   tasks: ShiftTaskDetail[]
+  staff: ShiftStaffMember[]
+  aiSummary: string | null
 }
 
 export interface UserSummary {

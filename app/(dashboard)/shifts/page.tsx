@@ -14,6 +14,10 @@ export default async function ShiftsPage() {
   const userName = session.user.name ?? session.user.email ?? 'Unknown'
 
   return (
-    <ShiftDashboard userRole={session.user.role} userName={userName} />
+    <ShiftDashboard
+      userRole={session.user.role}
+      userName={userName}
+      userId={session.user.id}
+    />
   )
 }

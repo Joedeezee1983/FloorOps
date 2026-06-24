@@ -51,6 +51,14 @@ enum TaskStatus {
   RESOLVED
 }
 
+enum TaskSection {
+  PRE_EXISTING_DOWN
+  FLOOR_GAMES
+  KIOSKS
+  BENCH_OFFICE
+  MISCELLANEOUS
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -64,10 +72,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  location Location? @relation(fields: [locationId], references: [id])
-  sessions Session[]
-  accounts Account[]
-  shifts   Shift[]   @relation("ShiftSupervisor")
+  location    Location?    @relation(fields: [locationId], references: [id])
+  sessions    Session[]
+  accounts    Account[]
+  shifts      Shift[]      @relation("ShiftSupervisor")
+  shiftStaff  ShiftStaff[]
 
   @@index([email])
   @@index([locationId])
@@ -199,9 +208,11 @@ model Shift {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  location   Location    @relation(fields: [locationId], references: [id])
-  supervisor User?       @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
-  tasks      ShiftTask[]
+  location    Location       @relation(fields: [locationId], references: [id])
+  supervisor  User?          @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
+  tasks       ShiftTask[]
+  staff       ShiftStaff[]
+  aiBriefing  ShiftBriefing?
 
   @@index([locationId])
   @@index([supervisorId])
@@ -210,15 +221,16 @@ model Shift {
 }
 
 model ShiftTask {
-  id           String     @id @default(cuid())
+  id           String      @id @default(cuid())
   shiftId      String
   type         TaskType
+  section      TaskSection @default(MISCELLANEOUS)
   description  String
-  status       TaskStatus @default(PENDING)
+  status       TaskStatus  @default(PENDING)
   machineId    String?
   loggedByName String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   shift   Shift    @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   machine Machine? @relation(fields: [machineId], references: [id])
@@ -226,6 +238,28 @@ model ShiftTask {
   @@index([shiftId])
   @@index([machineId])
   @@index([status])
+}
+
+model ShiftStaff {
+  id      String @id @default(cuid())
+  shiftId String
+  userId  String
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([shiftId, userId])
+  @@index([shiftId])
+  @@index([userId])
+}
+
+model ShiftBriefing {
+  id        String   @id @default(cuid())
+  shiftId   String   @unique
+  content   String
+  createdAt DateTime @default(now())
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
 }
 
 model SystemSettings {

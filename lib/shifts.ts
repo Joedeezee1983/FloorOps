@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import type { ShiftType, ShiftStatus, TaskType, TaskStatus } from '@prisma/client'
+import type { ShiftType, ShiftStatus, TaskType, TaskStatus, TaskSection } from '@prisma/client'
 import type { ShiftSummary, ShiftDetail, ShiftTaskDetail } from '@/types'
 
 // ─── Select shapes ────────────────────────────────────────────────────────────
@@ -8,6 +8,7 @@ const TASK_SELECT = {
   id: true,
   shiftId: true,
   type: true,
+  section: true,
   description: true,
   status: true,
   machineId: true,
@@ -36,6 +37,35 @@ const SHIFT_SUMMARY_SELECT = {
   location: { select: { name: true } },
   supervisor: { select: { name: true } },
   _count: { select: { tasks: true } },
+} as const
+
+const SHIFT_DETAIL_SELECT = {
+  id: true,
+  type: true,
+  status: true,
+  locationId: true,
+  supervisorId: true,
+  startTime: true,
+  endTime: true,
+  headcount: true,
+  briefing: true,
+  notes: true,
+  createdAt: true,
+  location: { select: { name: true } },
+  supervisor: { select: { name: true } },
+  tasks: {
+    select: TASK_SELECT,
+    orderBy: { createdAt: 'asc' as const },
+  },
+  staff: {
+    select: {
+      userId: true,
+      user: { select: { name: true } },
+    },
+  },
+  aiBriefing: {
+    select: { content: true },
+  },
 } as const
 
 // ─── Read queries ─────────────────────────────────────────────────────────────
@@ -68,50 +98,16 @@ export async function getAllShifts(): Promise<ShiftSummary[]> {
 }
 
 /**
- * Returns full shift detail including all tasks and linked machine info.
+ * Returns full shift detail including tasks, staff, and AI briefing.
  */
 export async function getShiftDetail(id: string): Promise<ShiftDetail | null> {
   const row = await prisma.shift.findUnique({
     where: { id },
-    select: {
-      id: true,
-      type: true,
-      status: true,
-      locationId: true,
-      supervisorId: true,
-      startTime: true,
-      endTime: true,
-      headcount: true,
-      briefing: true,
-      notes: true,
-      createdAt: true,
-      location: { select: { name: true } },
-      supervisor: { select: { name: true } },
-      tasks: {
-        select: TASK_SELECT,
-        orderBy: { createdAt: 'asc' },
-      },
-    },
+    select: SHIFT_DETAIL_SELECT,
   })
 
   if (!row) return null
-
-  return {
-    id: row.id,
-    type: row.type,
-    status: row.status,
-    locationId: row.locationId,
-    locationName: row.location?.name ?? null,
-    supervisorId: row.supervisorId,
-    supervisorName: row.supervisor?.name ?? null,
-    startTime: row.startTime.toISOString(),
-    endTime: row.endTime.toISOString(),
-    headcount: row.headcount,
-    briefing: row.briefing,
-    notes: row.notes,
-    createdAt: row.createdAt.toISOString(),
-    tasks: row.tasks.map(mapTaskDetail),
-  }
+  return mapShiftDetail(row)
 }
 
 // ─── Write mutations ──────────────────────────────────────────────────────────
@@ -126,13 +122,14 @@ export interface CreateShiftInput {
   headcount?: number
   briefing?: string
   notes?: string
+  staffIds?: string[]
 }
 
 /**
- * Creates a new shift for a location.
+ * Creates a new shift and its initial staff roster.
  */
 export async function createShift(input: CreateShiftInput): Promise<ShiftDetail> {
-  const row = await prisma.shift.create({
+  const created = await prisma.shift.create({
     data: {
       type: input.type,
       status: input.status ?? 'SCHEDULED',
@@ -144,45 +141,50 @@ export async function createShift(input: CreateShiftInput): Promise<ShiftDetail>
       briefing: input.briefing ?? null,
       notes: input.notes ?? null,
     },
-    select: {
-      id: true,
-      type: true,
-      status: true,
-      locationId: true,
-      supervisorId: true,
-      startTime: true,
-      endTime: true,
-      headcount: true,
-      briefing: true,
-      notes: true,
-      createdAt: true,
-      location: { select: { name: true } },
-      supervisor: { select: { name: true } },
-      tasks: { select: TASK_SELECT },
-    },
+    select: { id: true },
   })
 
-  return {
-    id: row.id,
-    type: row.type,
-    status: row.status,
-    locationId: row.locationId,
-    locationName: row.location?.name ?? null,
-    supervisorId: row.supervisorId,
-    supervisorName: row.supervisor?.name ?? null,
-    startTime: row.startTime.toISOString(),
-    endTime: row.endTime.toISOString(),
-    headcount: row.headcount,
-    briefing: row.briefing,
-    notes: row.notes,
-    createdAt: row.createdAt.toISOString(),
-    tasks: [],
+  if (input.staffIds && input.staffIds.length > 0) {
+    await prisma.shiftStaff.createMany({
+      data: input.staffIds.map((userId) => ({ shiftId: created.id, userId })),
+      skipDuplicates: true,
+    })
   }
+
+  const detail = await getShiftDetail(created.id)
+  if (!detail) throw new Error('Failed to fetch shift after creation')
+  return detail
+}
+
+/**
+ * Marks a shift as COMPLETED with the current time as the end time.
+ */
+export async function endShift(id: string): Promise<ShiftDetail> {
+  await prisma.shift.update({
+    where: { id },
+    data: { status: 'COMPLETED', endTime: new Date() },
+  })
+
+  const detail = await getShiftDetail(id)
+  if (!detail) throw new Error('Shift not found after update')
+  return detail
+}
+
+/**
+ * Stores the AI-generated shift summary. Upserts so it is safe to regenerate.
+ */
+export async function storeShiftBriefing(shiftId: string, content: string): Promise<void> {
+  await prisma.shiftBriefing.upsert({
+    where: { shiftId },
+    create: { shiftId, content },
+    update: { content },
+  })
 }
 
 export interface CreateShiftTaskInput {
   shiftId: string
   type: TaskType
+  section: TaskSection
   description: string
   machineId?: string
   loggedByName?: string
@@ -198,6 +200,7 @@ export async function createShiftTask(input: CreateShiftTaskInput): Promise<Shif
       data: {
         shiftId: input.shiftId,
         type: input.type,
+        section: input.section,
         description: input.description,
         machineId: input.machineId ?? null,
         loggedByName: input.loggedByName ?? null,
@@ -301,7 +304,7 @@ function mapShiftSummary(r: ShiftSummaryRow): ShiftSummary {
     endTime: r.endTime.toISOString(),
     headcount: r.headcount,
     taskCount: r._count.tasks,
-    downMachineCount: 0, // computed below if needed
+    downMachineCount: 0,
   }
 }
 
@@ -309,6 +312,7 @@ type TaskRow = {
   id: string
   shiftId: string
   type: TaskType
+  section: TaskSection
   description: string
   status: TaskStatus
   machineId: string | null
@@ -328,6 +332,7 @@ function mapTaskDetail(r: TaskRow): ShiftTaskDetail {
     id: r.id,
     shiftId: r.shiftId,
     type: r.type,
+    section: r.section,
     description: r.description,
     status: r.status,
     machineId: r.machineId,
@@ -335,5 +340,45 @@ function mapTaskDetail(r: TaskRow): ShiftTaskDetail {
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     machine: r.machine ?? null,
+  }
+}
+
+type ShiftDetailRow = {
+  id: string
+  type: ShiftType
+  status: ShiftStatus
+  locationId: string
+  supervisorId: string | null
+  startTime: Date
+  endTime: Date
+  headcount: number
+  briefing: string | null
+  notes: string | null
+  createdAt: Date
+  location: { name: string } | null
+  supervisor: { name: string | null } | null
+  tasks: TaskRow[]
+  staff: Array<{ userId: string; user: { name: string | null } }>
+  aiBriefing: { content: string } | null
+}
+
+function mapShiftDetail(row: ShiftDetailRow): ShiftDetail {
+  return {
+    id: row.id,
+    type: row.type,
+    status: row.status,
+    locationId: row.locationId,
+    locationName: row.location?.name ?? null,
+    supervisorId: row.supervisorId,
+    supervisorName: row.supervisor?.name ?? null,
+    startTime: row.startTime.toISOString(),
+    endTime: row.endTime.toISOString(),
+    headcount: row.headcount,
+    briefing: row.briefing,
+    notes: row.notes,
+    createdAt: row.createdAt.toISOString(),
+    tasks: row.tasks.map(mapTaskDetail),
+    staff: row.staff.map((s) => ({ userId: s.userId, name: s.user.name })),
+    aiSummary: row.aiBriefing?.content ?? null,
   }
 }
