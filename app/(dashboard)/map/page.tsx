@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { getAllMapMachines } from '@/lib/machines'
+import { getFirstBlueprint } from '@/lib/blueprints'
 import FloorMap from '@/components/FloorMap'
 
 export const metadata = { title: 'Floor Map — FloorOps' }
@@ -14,13 +15,17 @@ export default async function MapPage() {
   const session = await getServerSession(authOptions)
   if (!session) redirect('/login')
 
-  const initialMachines = await getAllMapMachines()
+  const [initialMachines, initialBlueprint] = await Promise.all([
+    getAllMapMachines(),
+    getFirstBlueprint(),
+  ])
 
   return (
     <div className="flex flex-col h-screen bg-gray-950">
       <FloorMap
         initialMachines={initialMachines}
         userRole={session.user.role}
+        initialBlueprint={initialBlueprint}
       />
     </div>
   )

@@ -1,6 +1,14 @@
-import type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType } from '@prisma/client'
+import type {
+  UserRole,
+  MachineStatus,
+  ShiftType,
+  ShiftStatus,
+  ProgressiveType,
+  TaskType,
+  TaskStatus,
+} from '@prisma/client'
 
-export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType }
+export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus }
 
 export interface SessionUser {
   id: string
@@ -16,7 +24,21 @@ export interface LocationSummary {
   isActive: boolean
 }
 
-// Lightweight shape used by the floor map grid and polling
+export interface BlueprintSummary {
+  id: string
+  locationId: string
+  imageUrl: string
+  opacity: number
+}
+
+export interface ActiveShiftTaskInfo {
+  id: string
+  loggedByName: string | null
+  createdAt: string
+}
+
+// Lightweight shape used by the floor map grid and polling.
+// activeShiftTask is only populated from getAllMapMachines — mutations leave it undefined.
 export interface MapMachine {
   id: string
   assetNumber: string
@@ -26,6 +48,7 @@ export interface MapMachine {
   locationId: string | null
   gridX: number | null
   gridY: number | null
+  activeShiftTask?: ActiveShiftTaskInfo | null
 }
 
 export interface StatusLogEntry {
@@ -53,6 +76,7 @@ export interface MachineDetail {
   gridY: number | null
   createdAt: string
   statusLogs: StatusLogEntry[]
+  activeShiftTask?: ActiveShiftTaskInfo | null
 }
 
 // Full item shape used by the machines registry table
@@ -78,7 +102,7 @@ export interface MachineListResponse {
   pageSize: number
 }
 
-// CSV import types
+// CSV import types (new machines only — no upsert)
 export interface CsvImportRow {
   assetNumber: string
   bankNumber: string
@@ -103,14 +127,78 @@ export interface CsvImportResult {
   errors: CsvRowResult[]
 }
 
+// Active games sync (upsert — matches by assetNumber)
+export interface SyncRowResult {
+  row: number
+  assetNumber: string
+  action: 'created' | 'updated' | 'failed'
+  error?: string
+}
+
+export interface SyncImportResult {
+  created: number
+  updated: number
+  failed: number
+  errors: SyncRowResult[]
+}
+
+// Machine search (autocomplete)
+export interface MachineSearchResult {
+  id: string
+  assetNumber: string
+  bankNumber: string
+  gameName: string
+  status: MachineStatus
+}
+
+// Shift types
 export interface ShiftSummary {
   id: string
   type: ShiftType
   status: ShiftStatus
   locationId: string
-  startTime: Date
-  endTime: Date
+  locationName: string | null
+  supervisorName: string | null
+  startTime: string
+  endTime: string
   headcount: number
+  taskCount: number
+  downMachineCount: number
+}
+
+export interface ShiftTaskDetail {
+  id: string
+  shiftId: string
+  type: TaskType
+  description: string
+  status: TaskStatus
+  machineId: string | null
+  loggedByName: string | null
+  createdAt: string
+  updatedAt: string
+  machine: {
+    assetNumber: string
+    gameName: string
+    bankNumber: string
+    status: MachineStatus
+  } | null
+}
+
+export interface ShiftDetail {
+  id: string
+  type: ShiftType
+  status: ShiftStatus
+  locationId: string
+  locationName: string | null
+  supervisorId: string | null
+  supervisorName: string | null
+  startTime: string
+  endTime: string
+  headcount: number
+  briefing: string | null
+  notes: string | null
+  createdAt: string
+  tasks: ShiftTaskDetail[]
 }
 
 export interface UserSummary {

@@ -5,6 +5,7 @@ import StatusBadge from '@/components/StatusBadge'
 import MachineDrawer from '@/components/MachineDrawer'
 import MachineForm from '@/components/MachineForm'
 import MachineImportModal from '@/components/MachineImportModal'
+import MachineSyncModal from '@/components/MachineSyncModal'
 import {
   MACHINES_PER_PAGE,
   GAME_BRANDS,
@@ -48,6 +49,7 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editMachine, setEditMachine] = useState<MachineListItem | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [showSync, setShowSync] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -137,27 +139,39 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
               {isLoading ? 'Loading…' : `${total.toLocaleString()} machine${total !== 1 ? 's' : ''}`}
             </p>
           </div>
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <a
-                href="/api/machines/template"
-                download
-                className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                CSV Template
-              </a>
+          {(isAdmin || userRole === 'SUPERVISOR') && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isAdmin && (
+                <a
+                  href="/api/machines/template"
+                  download
+                  className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  CSV Template
+                </a>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-gray-700 rounded-lg hover:bg-gray-600 border border-gray-600 transition-colors"
+                >
+                  Import CSV
+                </button>
+              )}
               <button
-                onClick={() => setShowImport(true)}
-                className="px-4 py-2 text-sm font-semibold text-white bg-gray-700 rounded-lg hover:bg-gray-600 border border-gray-600 transition-colors"
+                onClick={() => setShowSync(true)}
+                className="px-4 py-2 text-sm font-semibold text-white bg-purple-700 rounded-lg hover:bg-purple-600 border border-purple-600 transition-colors"
               >
-                Import CSV
+                Sync Report
               </button>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
-              >
-                <span className="text-lg leading-none">+</span> Add Machine
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                >
+                  <span className="text-lg leading-none">+</span> Add Machine
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -331,6 +345,14 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
         <MachineImportModal
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); void fetchMachines() }}
+        />
+      )}
+
+      {/* Active games sync */}
+      {showSync && (
+        <MachineSyncModal
+          onClose={() => setShowSync(false)}
+          onSynced={() => { setShowSync(false); void fetchMachines() }}
         />
       )}
     </div>

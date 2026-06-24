@@ -23,6 +23,14 @@ export default function MachineTile({
   const styles = MACHINE_STATUS_STYLES[machine.status]
   const showLabel = cellPx >= 28
   const showName = cellPx >= 48
+  const showWrench = Boolean(machine.activeShiftTask)
+
+  const tooltipParts: string[] = [`${machine.assetNumber} — ${machine.gameName}`]
+  if (machine.activeShiftTask) {
+    const since = new Date(machine.activeShiftTask.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const by = machine.activeShiftTask.loggedByName ?? 'Unknown'
+    tooltipParts.push(`Down since ${since} — logged by ${by}`)
+  }
 
   return (
     <div
@@ -30,10 +38,10 @@ export default function MachineTile({
       onDragStart={() => onDragStart(machine)}
       onDragEnd={onDragEnd}
       onClick={() => onClick(machine)}
-      title={`${machine.assetNumber} — ${machine.gameName}`}
+      title={tooltipParts.join('\n')}
       style={{ width: cellPx, height: cellPx }}
       className={`
-        flex flex-col items-center justify-center gap-0.5
+        relative flex flex-col items-center justify-center gap-0.5
         rounded border cursor-pointer select-none
         transition-all duration-150
         hover:brightness-125 active:scale-95
@@ -41,18 +49,28 @@ export default function MachineTile({
         ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}
       `}
     >
-      <span className={`rounded-full shrink-0 ${styles.dot}`}
+      {/* Wrench badge for shift-downed machines */}
+      {showWrench && (
+        <div className="absolute top-0.5 right-0.5 z-10 text-orange-300 leading-none" style={{ fontSize: Math.max(8, cellPx * 0.18) }}>
+          🔧
+        </div>
+      )}
+
+      <span
+        className={`rounded-full shrink-0 ${styles.dot}`}
         style={{ width: Math.max(4, cellPx * 0.1), height: Math.max(4, cellPx * 0.1) }}
       />
       {showLabel && (
-        <span className="font-bold leading-none truncate max-w-full px-0.5"
+        <span
+          className="font-bold leading-none truncate max-w-full px-0.5"
           style={{ fontSize: Math.max(7, cellPx * 0.16) }}
         >
           {machine.assetNumber}
         </span>
       )}
       {showName && (
-        <span className="leading-none text-center px-0.5 truncate max-w-full opacity-80"
+        <span
+          className="leading-none text-center px-0.5 truncate max-w-full opacity-80"
           style={{ fontSize: Math.max(6, cellPx * 0.13) }}
         >
           {machine.gameName}

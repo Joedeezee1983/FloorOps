@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { MACHINES_PER_PAGE } from '@/constants'
-import type { MachineStatus, ProgressiveType, Prisma } from '@prisma/client'
+import type { MachineStatus, ProgressiveType, TaskStatus, Prisma } from '@prisma/client'
 import type {
   MapMachine,
   MachineDetail,
@@ -8,10 +8,12 @@ import type {
   MachineListResponse,
   CsvImportResult,
   CsvRowResult,
+  ActiveShiftTaskInfo,
 } from '@/types'
 
 // ─── Select shapes ────────────────────────────────────────────────────────────
 
+// Used by mutations (create, update) — no shift task join needed
 const MAP_MACHINE_SELECT = {
   id: true,
   assetNumber: true,
@@ -21,6 +23,20 @@ const MAP_MACHINE_SELECT = {
   locationId: true,
   gridX: true,
   gridY: true,
+} as const
+
+// Active shift task statuses that flag a machine as currently worked on
+const ACTIVE_TASK_STATUSES: TaskStatus[] = ['PENDING', 'IN_PROGRESS']
+
+// Includes shift task info for the floor map polling endpoint
+const MAP_MACHINE_WITH_TASKS_SELECT = {
+  ...MAP_MACHINE_SELECT,
+  shiftTasks: {
+    where: { status: { in: ACTIVE_TASK_STATUSES } },
+    select: { id: true, loggedByName: true, createdAt: true },
+    take: 1,
+    orderBy: { createdAt: 'desc' as const },
+  },
 } as const
 
 const LIST_ITEM_SELECT = {
@@ -59,18 +75,37 @@ const DETAIL_SELECT = {
     orderBy: { changedAt: 'desc' as const },
     take: 20,
   },
+  shiftTasks: {
+    where: { status: { in: ACTIVE_TASK_STATUSES } },
+    select: { id: true, loggedByName: true, createdAt: true },
+    take: 1,
+    orderBy: { createdAt: 'desc' as const },
+  },
 } as const
 
 // ─── Read queries ─────────────────────────────────────────────────────────────
 
 /**
  * Returns minimal machine data for the floor map grid and polling.
+ * Includes active shift task info so the map can render wrench icons.
  */
 export async function getAllMapMachines(): Promise<MapMachine[]> {
-  return prisma.machine.findMany({
-    select: MAP_MACHINE_SELECT,
+  const rows = await prisma.machine.findMany({
+    select: MAP_MACHINE_WITH_TASKS_SELECT,
     orderBy: { assetNumber: 'asc' },
   })
+
+  return rows.map((r) => ({
+    id: r.id,
+    assetNumber: r.assetNumber,
+    bankNumber: r.bankNumber,
+    gameName: r.gameName,
+    status: r.status,
+    locationId: r.locationId,
+    gridX: r.gridX,
+    gridY: r.gridY,
+    activeShiftTask: toActiveShiftTask(r.shiftTasks[0]),
+  }))
 }
 
 export interface ListMachinesInput {
@@ -115,6 +150,7 @@ export async function getAllMachinesForList(
 
 /**
  * Returns a single machine with full detail and its last 20 status log entries.
+ * Includes any active shift task so the drawer can show who downed it.
  */
 export async function getMachineDetail(id: string): Promise<MachineDetail | null> {
   const row = await prisma.machine.findUnique({
@@ -131,6 +167,7 @@ export async function getMachineDetail(id: string): Promise<MachineDetail | null
       ...log,
       changedAt: log.changedAt.toISOString(),
     })),
+    activeShiftTask: toActiveShiftTask(row.shiftTasks[0]),
   }
 }
 
@@ -174,7 +211,7 @@ export async function createMachine(input: CreateMachineInput): Promise<MapMachi
     select: MAP_MACHINE_SELECT,
   })
 
-  return machine
+  return { ...machine, activeShiftTask: null }
 }
 
 export interface UpdateMachineFieldsInput {
@@ -210,14 +247,15 @@ export async function updateMachineFields(
         data: { machineId: id, status, note: 'Status updated via machine registry' },
       }),
     ])
-    return machine
+    return { ...machine, activeShiftTask: null }
   }
 
-  return prisma.machine.update({
+  const machine = await prisma.machine.update({
     where: { id },
     data: otherFields,
     select: MAP_MACHINE_SELECT,
   })
+  return { ...machine, activeShiftTask: null }
 }
 
 export interface UpdateMachinePositionInput {
@@ -233,11 +271,12 @@ export async function updateMachinePosition(
   id: string,
   input: UpdateMachinePositionInput
 ): Promise<MapMachine> {
-  return prisma.machine.update({
+  const machine = await prisma.machine.update({
     where: { id },
     data: { gridX: input.gridX, gridY: input.gridY },
     select: MAP_MACHINE_SELECT,
   })
+  return { ...machine, activeShiftTask: null }
 }
 
 /**
@@ -258,7 +297,7 @@ export async function updateMachineStatus(
       data: { machineId: id, status, note: note ?? null },
     }),
   ])
-  return machine
+  return { ...machine, activeShiftTask: null }
 }
 
 /**
@@ -325,6 +364,13 @@ export async function bulkImportMachines(rows: BulkImportRow[]): Promise<CsvImpo
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
+
+function toActiveShiftTask(
+  row: { id: string; loggedByName: string | null; createdAt: Date } | undefined
+): ActiveShiftTaskInfo | null {
+  if (!row) return null
+  return { id: row.id, loggedByName: row.loggedByName, createdAt: row.createdAt.toISOString() }
+}
 
 function buildWhere(input: ListMachinesInput): Prisma.MachineWhereInput {
   const conditions: Prisma.MachineWhereInput[] = []

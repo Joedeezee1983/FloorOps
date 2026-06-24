@@ -15,7 +15,9 @@
       "Bash(netstat -ano)",
       "PowerShell(Get-Process -Id 100020 2>&1)",
       "Bash(pkill -f \"next dev\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(taskkill /F /IM node.exe)"
     ]
   }
 }

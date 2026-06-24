@@ -90,13 +90,39 @@ export const PROGRESSIVE_TYPE_LABELS: Record<string, string> = {
   WIDE_AREA: 'Wide Area',
 }
 
+export const TASK_TYPE_LABELS: Record<string, string> = {
+  DOWN_MACHINE: 'Down Machine',
+  GENERAL: 'General',
+  MAINTENANCE_REQUEST: 'Maintenance Request',
+}
+
+export const TASK_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  IN_PROGRESS: 'In Progress',
+  RESOLVED: 'Resolved',
+}
+
+export const TASK_STATUS_STYLES = {
+  PENDING: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
+  IN_PROGRESS: 'bg-blue-900/40 text-blue-300 border border-blue-700',
+  RESOLVED: 'bg-green-900/40 text-green-300 border border-green-700',
+} as const
+
 export const CSV_TEMPLATE_HEADER =
   'assetNumber,bankNumber,gameName,gameBrand,gameType,progressiveType,denomination,softwareVersion'
 
 export const CSV_TEMPLATE_EXAMPLE =
   '21257,7-19,Buffalo Gold,Aristocrat,Slot,LINKED,0.01,v4.23.1'
 
+// Active games sync — superset of import; status column is optional
+export const SYNC_TEMPLATE_HEADER =
+  'assetNumber,bankNumber,gameName,gameBrand,gameType,progressiveType,denomination,softwareVersion,status'
+
+export const SYNC_REQUIRED_COLUMNS = ['assetNumber', 'bankNumber', 'gameName', 'gameBrand', 'gameType']
+
 export const VALID_PROGRESSIVE_TYPES = new Set(['NONE', 'STANDALONE', 'LINKED', 'WIDE_AREA'])
+
+export const VALID_MACHINE_STATUSES = new Set(['ONLINE', 'OFFLINE', 'WARNING', 'MAINTENANCE'])
 
 export const PROTECTED_ROUTES = {
   ADMIN_ONLY: ['/admin'],

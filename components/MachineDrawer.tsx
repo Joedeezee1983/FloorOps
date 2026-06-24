@@ -59,6 +59,9 @@ export default function MachineDrawer({
         <DrawerHeader detail={detail} onClose={onClose} isLoading={isLoading} />
         {detail && (
           <>
+            {detail.activeShiftTask && (
+              <DrawerShiftTaskBanner task={detail.activeShiftTask} />
+            )}
             <DrawerMeta detail={detail} />
             {isAdmin && (
               <DrawerStatusControls
@@ -110,6 +113,27 @@ function DrawerHeader({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
+    </div>
+  )
+}
+
+function DrawerShiftTaskBanner({
+  task,
+}: {
+  task: NonNullable<MachineDetail['activeShiftTask']>
+}) {
+  const since = new Date(task.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const by = task.loggedByName ?? 'Unknown'
+
+  return (
+    <div className="mx-4 mt-4 rounded-lg bg-orange-900/30 border border-orange-700 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <span className="text-orange-300 text-base">🔧</span>
+        <p className="text-sm font-semibold text-orange-300">Active shift task</p>
+      </div>
+      <p className="text-xs text-orange-400 mt-1">
+        Logged down by <span className="font-medium text-orange-300">{by}</span> at {since}
+      </p>
     </div>
   )
 }

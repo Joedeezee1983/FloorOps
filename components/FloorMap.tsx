@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import MachineTile from '@/components/MachineTile'
 import MachineDrawer from '@/components/MachineDrawer'
 import MachineForm from '@/components/MachineForm'
+import BlueprintUploadModal from '@/components/BlueprintUploadModal'
 import StatusBadge from '@/components/StatusBadge'
 import { useFloorMapPolling } from '@/hooks/useFloorMapPolling'
 import {
@@ -18,11 +19,12 @@ import {
   ZOOM_STEP,
   MINIMAP_CELL_PX,
 } from '@/constants'
-import type { MapMachine, MachineStatus, UserRole } from '@/types'
+import type { MapMachine, MachineStatus, UserRole, BlueprintSummary } from '@/types'
 
 export interface FloorMapProps {
   initialMachines: MapMachine[]
   userRole: UserRole
+  initialBlueprint?: BlueprintSummary | null
 }
 
 interface DragState {
@@ -32,7 +34,6 @@ interface DragState {
 const MINIMAP_W = GRID_COLS * MINIMAP_CELL_PX
 const MINIMAP_H = GRID_ROWS * MINIMAP_CELL_PX
 
-// Status colors for the minimap canvas
 const MINIMAP_STATUS_COLORS: Record<MachineStatus, string> = {
   ONLINE: '#4ade80',
   OFFLINE: '#f87171',
@@ -40,7 +41,7 @@ const MINIMAP_STATUS_COLORS: Record<MachineStatus, string> = {
   MAINTENANCE: '#fb923c',
 }
 
-export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
+export default function FloorMap({ initialMachines, userRole, initialBlueprint }: FloorMapProps) {
   const { machines, lastUpdated, refreshMachines, optimisticMove, revertMove } =
     useFloorMapPolling(initialMachines)
 
@@ -49,6 +50,11 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM)
+
+  const [blueprint, setBlueprint] = useState<BlueprintSummary | null>(initialBlueprint ?? null)
+  const [showBlueprint, setShowBlueprint] = useState(true)
+  const [blueprintOpacity, setBlueprintOpacity] = useState(initialBlueprint?.opacity ?? 0.3)
+  const [showBlueprintUpload, setShowBlueprintUpload] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 })
@@ -72,6 +78,8 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
   }, [])
 
   const cellPx = Math.max(4, Math.round(GRID_CELL_PX * zoomLevel))
+  const gridW = GRID_COLS * cellPx
+  const gridH = GRID_ROWS * cellPx
 
   const isAdmin = userRole === 'ADMIN'
   const machineGrid = buildGrid(machines)
@@ -127,7 +135,7 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
     }
   }, [dragState, machineGrid, optimisticMove, revertMove])
 
-  const handleStatusChanged = useCallback((id: string, _status: MachineStatus) => {
+  const handleStatusChanged = useCallback((_id: string, _status: MachineStatus) => {
     void refreshMachines()
   }, [refreshMachines])
 
@@ -136,16 +144,29 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
     void refreshMachines()
   }, [refreshMachines])
 
+  const handleBlueprintUploaded = useCallback((uploaded: BlueprintSummary) => {
+    setBlueprint(uploaded)
+    setBlueprintOpacity(uploaded.opacity)
+    setShowBlueprint(true)
+    setShowBlueprintUpload(false)
+  }, [])
+
   return (
     <div className="flex flex-col h-full relative">
       <MapHeader
         isAdmin={isAdmin}
         lastUpdated={lastUpdated}
         zoomLevel={zoomLevel}
+        blueprint={blueprint}
+        showBlueprint={showBlueprint}
+        blueprintOpacity={blueprintOpacity}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onFitToScreen={fitToScreen}
         onAddMachine={() => setShowAddForm(true)}
+        onToggleBlueprint={() => setShowBlueprint((v) => !v)}
+        onOpacityChange={setBlueprintOpacity}
+        onUploadBlueprint={() => setShowBlueprintUpload(true)}
       />
 
       {isAdmin && unplaced.length > 0 && (
@@ -158,45 +179,56 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
         />
       )}
 
-      <div
-        ref={scrollRef}
-        className="overflow-auto flex-1 p-4"
-      >
-        <div
-          className="inline-grid border border-gray-800 rounded-lg overflow-hidden"
-          style={{ gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)` }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-              setDragOverCell(null)
-            }
-          }}
-        >
-          {Array.from({ length: GRID_ROWS }, (_, y) =>
-            Array.from({ length: GRID_COLS }, (_, x) => {
-              const machine = machineGrid.get(cellKey(x, y)) ?? null
-              const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
-              const isOccupied = machine !== null && machine.id !== dragState?.machine.id
-
-              return (
-                <GridCell
-                  key={cellKey(x, y)}
-                  x={x}
-                  y={y}
-                  machine={machine}
-                  isAdmin={isAdmin}
-                  isDragging={!!dragState}
-                  isHovered={isHovered}
-                  isOccupied={isOccupied}
-                  cellPx={cellPx}
-                  onDragOver={() => setDragOverCell({ x, y })}
-                  onDrop={() => handleDrop(x, y)}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                  onClick={(m) => setSelectedId(m.id)}
-                />
-              )
-            })
+      <div ref={scrollRef} className="overflow-auto flex-1 p-4">
+        <div className="relative" style={{ width: gridW, height: gridH }}>
+          {/* Blueprint overlay — sits behind the grid cells */}
+          {blueprint && showBlueprint && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={blueprint.imageUrl}
+              alt="Floor blueprint"
+              className="absolute inset-0 w-full h-full pointer-events-none select-none"
+              style={{ opacity: blueprintOpacity, objectFit: 'fill', zIndex: 0 }}
+            />
           )}
+
+          {/* Grid */}
+          <div
+            className="absolute inset-0 border border-gray-800 rounded-lg overflow-hidden"
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)`, zIndex: 1 }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOverCell(null)
+              }
+            }}
+          >
+            {Array.from({ length: GRID_ROWS }, (_, y) =>
+              Array.from({ length: GRID_COLS }, (_, x) => {
+                const machine = machineGrid.get(cellKey(x, y)) ?? null
+                const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
+                const isOccupied = machine !== null && machine.id !== dragState?.machine.id
+
+                return (
+                  <GridCell
+                    key={cellKey(x, y)}
+                    x={x}
+                    y={y}
+                    machine={machine}
+                    isAdmin={isAdmin}
+                    isDragging={!!dragState}
+                    isHovered={isHovered}
+                    isOccupied={isOccupied}
+                    cellPx={cellPx}
+                    onDragOver={() => setDragOverCell({ x, y })}
+                    onDrop={() => handleDrop(x, y)}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onClick={(m) => setSelectedId(m.id)}
+                  />
+                )
+              })
+            )}
+          </div>
         </div>
       </div>
 
@@ -222,6 +254,13 @@ export default function FloorMap({ initialMachines, userRole }: FloorMapProps) {
           onClose={() => setShowAddForm(false)}
         />
       )}
+
+      {showBlueprintUpload && (
+        <BlueprintUploadModal
+          onUploaded={handleBlueprintUploaded}
+          onClose={() => setShowBlueprintUpload(false)}
+        />
+      )}
     </div>
   )
 }
@@ -232,28 +271,71 @@ interface MapHeaderProps {
   isAdmin: boolean
   lastUpdated: Date
   zoomLevel: number
+  blueprint: BlueprintSummary | null
+  showBlueprint: boolean
+  blueprintOpacity: number
   onZoomIn: () => void
   onZoomOut: () => void
   onFitToScreen: () => void
   onAddMachine: () => void
+  onToggleBlueprint: () => void
+  onOpacityChange: (v: number) => void
+  onUploadBlueprint: () => void
 }
 
-function MapHeader({ isAdmin, lastUpdated, zoomLevel, onZoomIn, onZoomOut, onFitToScreen, onAddMachine }: MapHeaderProps) {
+function MapHeader({
+  isAdmin, lastUpdated, zoomLevel, blueprint, showBlueprint, blueprintOpacity,
+  onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint,
+}: MapHeaderProps) {
+  const BTN = 'px-3 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors'
+
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 gap-4">
+    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 gap-4 flex-wrap">
       <div className="shrink-0">
         <h1 className="text-2xl font-bold text-white">Floor Map</h1>
         <p className="text-xs text-gray-500 mt-0.5">
           Updated {lastUpdated.toLocaleTimeString()} · polls every 10s · {GRID_COLS}×{GRID_ROWS} grid
         </p>
       </div>
-      <div className="flex items-center gap-3">
+
+      <div className="flex items-center gap-3 flex-wrap">
+        {/* Blueprint controls */}
+        {blueprint && (
+          <div className="flex items-center gap-2">
+            <button onClick={onToggleBlueprint} className={`${BTN} ${showBlueprint ? 'text-blue-300 border-blue-700 bg-blue-900/30' : ''}`}>
+              Blueprint {showBlueprint ? 'On' : 'Off'}
+            </button>
+            {showBlueprint && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">Opacity</span>
+                <input
+                  type="range"
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  value={blueprintOpacity}
+                  onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+                  className="w-20 accent-blue-500"
+                />
+                <span className="text-xs text-gray-400 font-mono w-8">{Math.round(blueprintOpacity * 100)}%</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isAdmin && (
+          <button onClick={onUploadBlueprint} className={BTN}>
+            {blueprint ? 'Replace Blueprint' : 'Upload Blueprint'}
+          </button>
+        )}
+
         <ZoomControls
           zoomLevel={zoomLevel}
           onZoomIn={onZoomIn}
           onZoomOut={onZoomOut}
           onFitToScreen={onFitToScreen}
         />
+
         {isAdmin && (
           <button
             onClick={onAddMachine}
@@ -386,6 +468,10 @@ function MapLegend() {
           <span className="text-xs text-gray-400">{MACHINE_STATUS_LABELS[s]}</span>
         </div>
       ))}
+      <div className="flex items-center gap-1.5 ml-2">
+        <span className="text-xs text-orange-300">🔧</span>
+        <span className="text-xs text-gray-400">Shift task</span>
+      </div>
     </div>
   )
 }
