@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 import { env } from '@/lib/env'
 
-const FROM = 'FloorOps <noreply@floorops.tech>'
+const FROM = 'FloorOps <noreply@jay-de.com>'
 
 function getResend(): Resend {
   if (!env.RESEND_API_KEY) {
