@@ -28,7 +28,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const hashed = await hashPassword(password)
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashed, isEmailVerified: true, isActive: true },
+      data: { password: hashed, emailVerified: true, isActive: true },
     })
 
     return NextResponse.json({ data: { success: true } })

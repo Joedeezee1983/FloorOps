@@ -63,12 +63,11 @@ model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
-  emailVerified DateTime?
+  emailVerified Boolean   @default(true)
   image         String?
   password      String?
   role            UserRole  @default(TECH)
   isActive        Boolean   @default(true)
-  isEmailVerified Boolean   @default(true)
   locationId      String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

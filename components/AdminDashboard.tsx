@@ -63,8 +63,8 @@ function ActiveBadge({ isActive }: { isActive: boolean }) {
   )
 }
 
-function UserStatusBadge({ isActive, isEmailVerified }: { isActive: boolean; isEmailVerified: boolean }) {
-  if (!isEmailVerified) {
+function UserStatusBadge({ isActive, emailVerified }: { isActive: boolean; emailVerified: boolean }) {
+  if (!emailVerified) {
     return (
       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-300 border border-yellow-700">
         Pending
@@ -225,7 +225,7 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
                       </select>
                     )}
                   </td>
-                  <td className="px-4 py-3"><UserStatusBadge isActive={user.isActive} isEmailVerified={user.isEmailVerified} /></td>
+                  <td className="px-4 py-3"><UserStatusBadge isActive={user.isActive} emailVerified={user.emailVerified} /></td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>

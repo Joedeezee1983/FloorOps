@@ -10,7 +10,7 @@ const USER_SELECT = {
   email: true,
   role: true,
   isActive: true,
-  isEmailVerified: true,
+  emailVerified: true,
   locationId: true,
   createdAt: true,
 } as const
@@ -56,7 +56,7 @@ export async function createInvitedUser(input: InviteUserInput): Promise<AdminUs
       email: input.email,
       password: tempPassword,
       role: input.role,
-      isEmailVerified: false,
+      emailVerified: false,
       isActive: false,
     },
     select: USER_SELECT,
