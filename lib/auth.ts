@@ -24,11 +24,12 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          select: { id: true, name: true, email: true, password: true, role: true, isActive: true },
+          select: { id: true, name: true, email: true, password: true, role: true, isActive: true, isEmailVerified: true },
         })
 
         if (!user?.password) return null
-        if (!user.isActive) return null
+        if (!user.isEmailVerified) throw new Error('ACCOUNT_NOT_SETUP')
+        if (!user.isActive) throw new Error('ACCOUNT_INACTIVE')
 
         const isValid = await comparePasswords(credentials.password, user.password)
         if (!isValid) return null

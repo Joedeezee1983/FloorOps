@@ -63,6 +63,17 @@ function ActiveBadge({ isActive }: { isActive: boolean }) {
   )
 }
 
+function UserStatusBadge({ isActive, isEmailVerified }: { isActive: boolean; isEmailVerified: boolean }) {
+  if (!isEmailVerified) {
+    return (
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-900/50 text-yellow-300 border border-yellow-700">
+        Pending
+      </span>
+    )
+  }
+  return <ActiveBadge isActive={isActive} />
+}
+
 function LoadingRows({ count }: { count: number }) {
   return (
     <div className="space-y-2">
@@ -184,7 +195,7 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
         >
-          <span className="text-lg leading-none">+</span> Create User
+          <span className="text-lg leading-none">+</span> Invite User
         </button>
       </div>
 
@@ -214,7 +225,7 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
                       </select>
                     )}
                   </td>
-                  <td className="px-4 py-3"><ActiveBadge isActive={user.isActive} /></td>
+                  <td className="px-4 py-3"><UserStatusBadge isActive={user.isActive} isEmailVerified={user.isEmailVerified} /></td>
                   <td className="px-4 py-3 text-xs text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
@@ -702,7 +713,6 @@ function CreateUserModal({
 }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [role, setRole] = useState<UserRole>('TECH')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -710,7 +720,6 @@ function CreateUserModal({
   const handleSubmit = async (): Promise<void> => {
     if (!name.trim()) { setError('Name is required.'); return }
     if (!email.trim()) { setError('Email is required.'); return }
-    if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
 
     setIsSubmitting(true)
     setError(null)
@@ -718,10 +727,10 @@ function CreateUserModal({
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, role }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), role }),
       })
       const json = await res.json() as { data?: AdminUserItem; error?: string }
-      if (!res.ok) { setError(json.error ?? 'Failed to create user.'); return }
+      if (!res.ok) { setError(json.error ?? 'Failed to send invite.'); return }
       onCreated(json.data!)
     } finally {
       setIsSubmitting(false)
@@ -729,8 +738,11 @@ function CreateUserModal({
   }
 
   return (
-    <Modal title="Create User" onClose={onClose}>
+    <Modal title="Invite User" onClose={onClose}>
       <div className="px-6 py-5 space-y-4">
+        <p className="text-xs text-gray-500">
+          An invite email will be sent to the user with a link to set their password.
+        </p>
         <FormField label="Name">
           <input
             type="text"
@@ -746,15 +758,6 @@ function CreateUserModal({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="user@example.com"
-            className={INPUT_CLS}
-          />
-        </FormField>
-        <FormField label="Password">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Min. 8 characters"
             className={INPUT_CLS}
           />
         </FormField>
@@ -777,8 +780,8 @@ function CreateUserModal({
         onClose={onClose}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        submitLabel="Create User"
-        submittingLabel="Creating…"
+        submitLabel="Send Invite"
+        submittingLabel="Sending…"
       />
     </Modal>
   )

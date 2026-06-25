@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { prisma } from '@/lib/db'
 import { hashPassword } from '@/utils/password'
 import type { UserRole } from '@prisma/client'
@@ -9,6 +10,7 @@ const USER_SELECT = {
   email: true,
   role: true,
   isActive: true,
+  isEmailVerified: true,
   locationId: true,
   createdAt: true,
 } as const
@@ -35,21 +37,28 @@ export async function listUsers(): Promise<AdminUserItem[]> {
   return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))
 }
 
-export interface CreateUserInput {
+export interface InviteUserInput {
   name: string
   email: string
-  password: string
   role: UserRole
 }
 
 /**
- * Creates a new user with a hashed password.
+ * Creates a new user in the invited state — inactive with a random password.
+ * The user must complete account setup via the invite email link.
  * Throws a Prisma unique-constraint error if the email is already taken.
  */
-export async function createUser(input: CreateUserInput): Promise<AdminUserItem> {
-  const password = await hashPassword(input.password)
+export async function createInvitedUser(input: InviteUserInput): Promise<AdminUserItem> {
+  const tempPassword = await hashPassword(randomBytes(32).toString('hex'))
   const user = await prisma.user.create({
-    data: { name: input.name, email: input.email, password, role: input.role },
+    data: {
+      name: input.name,
+      email: input.email,
+      password: tempPassword,
+      role: input.role,
+      isEmailVerified: false,
+      isActive: false,
+    },
     select: USER_SELECT,
   })
   return { ...user, createdAt: user.createdAt.toISOString() }

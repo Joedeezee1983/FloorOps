@@ -2,14 +2,25 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+
+const ERROR_MESSAGES: Record<string, string> = {
+  ACCOUNT_NOT_SETUP: 'Please check your email to set up your account.',
+  ACCOUNT_INACTIVE: 'Your account is not yet active. Contact an administrator.',
+}
 
 export default function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  const setupSuccess = searchParams.get('setup') === 'success'
+  const resetSuccess = searchParams.get('reset') === 'success'
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -25,7 +36,7 @@ export default function LoginForm() {
     setIsLoading(false)
 
     if (result?.error) {
-      setError('Invalid email or password.')
+      setError(ERROR_MESSAGES[result.error] ?? 'Invalid email or password.')
       return
     }
 
@@ -35,6 +46,16 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {setupSuccess && (
+        <p className="rounded-lg bg-green-900/40 px-3 py-2 text-sm text-green-400">
+          Account activated. Sign in below.
+        </p>
+      )}
+      {resetSuccess && (
+        <p className="rounded-lg bg-green-900/40 px-3 py-2 text-sm text-green-400">
+          Password updated. Sign in with your new password.
+        </p>
+      )}
       <div>
         <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-300">
           Email
@@ -75,6 +96,14 @@ export default function LoginForm() {
       >
         {isLoading ? 'Signing in...' : 'Sign In'}
       </button>
+      <div className="text-center">
+        <Link
+          href="/auth/forgot-password"
+          className="text-sm text-gray-500 hover:text-gray-400 transition-colors"
+        >
+          Forgot password?
+        </Link>
+      </div>
     </form>
   )
 }

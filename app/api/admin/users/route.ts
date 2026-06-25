@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { listUsers, createUser } from '@/lib/admin'
+import { prisma } from '@/lib/db'
+import { listUsers, createInvitedUser } from '@/lib/admin'
+import { createToken } from '@/lib/tokens'
+import { sendInviteEmail } from '@/lib/email'
 import type { UserRole } from '@prisma/client'
 
 const VALID_ROLES = new Set<UserRole>(['TECH', 'SUPERVISOR', 'ADMIN'])
@@ -36,19 +39,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!body.email || typeof body.email !== 'string' || !body.email.trim()) {
       return NextResponse.json({ error: 'email is required' }, { status: 400 })
     }
-    if (!body.password || typeof body.password !== 'string' || body.password.length < 8) {
-      return NextResponse.json({ error: 'password must be at least 8 characters' }, { status: 400 })
-    }
     if (!body.role || !VALID_ROLES.has(body.role as UserRole)) {
       return NextResponse.json({ error: 'role must be TECH, SUPERVISOR, or ADMIN' }, { status: 400 })
     }
 
-    const user = await createUser({
+    const user = await createInvitedUser({
       name: (body.name as string).trim(),
       email: (body.email as string).trim().toLowerCase(),
-      password: body.password as string,
       role: body.role as UserRole,
     })
+
+    // Create invite token and send email — clean up user on email failure
+    let token: string
+    try {
+      token = await createToken(user.id, 'INVITE')
+      await sendInviteEmail(user.email, token)
+    } catch (emailError) {
+      console.error('[admin/users] Failed to send invite email, rolling back user creation:', emailError)
+      await prisma.user.delete({ where: { id: user.id } })
+      return NextResponse.json({ error: 'Failed to send invite email. Please try again.' }, { status: 500 })
+    }
 
     return NextResponse.json({ data: user }, { status: 201 })
   } catch (error) {

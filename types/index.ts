@@ -226,6 +226,7 @@ export interface AdminUserItem {
   email: string
   role: UserRole
   isActive: boolean
+  isEmailVerified: boolean
   locationId: string | null
   createdAt: string
 }
