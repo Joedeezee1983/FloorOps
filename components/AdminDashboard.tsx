@@ -145,6 +145,9 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null)
 
   const loadUsers = useCallback(async () => {
     setIsLoading(true)
@@ -185,6 +188,41 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
     setUsers((prev) => prev.map((u) => u.id === id ? json.data : u))
   }
 
+  const handleResendInvite = async (id: string): Promise<void> => {
+    setActionLoadingId(id)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/admin/users/${id}/resend-invite`, { method: 'POST' })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) setActionError(json.error ?? 'Failed to resend invite.')
+    } catch {
+      setActionError('Failed to resend invite.')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleCancelInvite = async (id: string): Promise<void> => {
+    setConfirmCancelId(null)
+    setActionLoadingId(id)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/admin/users/${id}/cancel-invite`, { method: 'DELETE' })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) {
+        setActionError(json.error ?? 'Failed to cancel invite.')
+      } else {
+        setUsers((prev) => prev.filter((u) => u.id !== id))
+      }
+    } catch {
+      setActionError('Failed to cancel invite.')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const isPending = (user: AdminUserItem) => !user.emailVerified && !user.isActive
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -200,6 +238,7 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
       </div>
 
       {fetchError && <p className="text-red-400 text-sm mb-4">{fetchError}</p>}
+      {actionError && <p className="text-red-400 text-sm mb-4">{actionError}</p>}
 
       {isLoading ? <LoadingRows count={4} /> : (
         <div className="rounded-xl border border-gray-800 overflow-hidden">
@@ -231,16 +270,37 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {user.id !== currentUserId && (
-                      <button
-                        onClick={() => void handleToggleActive(user.id, !user.isActive)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                          user.isActive
-                            ? 'text-red-400 border-red-800 hover:bg-red-900/20'
-                            : 'text-green-400 border-green-800 hover:bg-green-900/20'
-                        }`}
-                      >
-                        {user.isActive ? 'Deactivate' : 'Reactivate'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {isPending(user) ? (
+                          <>
+                            <button
+                              onClick={() => void handleResendInvite(user.id)}
+                              disabled={actionLoadingId === user.id}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-yellow-700 text-yellow-400 hover:bg-yellow-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {actionLoadingId === user.id ? '…' : 'Resend Invite'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmCancelId(user.id)}
+                              disabled={actionLoadingId === user.id}
+                              className="text-xs px-2.5 py-1 rounded-lg border border-red-800 text-red-400 hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Cancel Invite
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => void handleToggleActive(user.id, !user.isActive)}
+                            className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                              user.isActive
+                                ? 'text-red-400 border-red-800 hover:bg-red-900/20'
+                                : 'text-green-400 border-green-800 hover:bg-green-900/20'
+                            }`}
+                          >
+                            {user.isActive ? 'Deactivate' : 'Reactivate'}
+                          </button>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -254,6 +314,16 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
         <CreateUserModal
           onCreated={(user) => { setUsers((prev) => [...prev, user]); setShowCreate(false) }}
           onClose={() => setShowCreate(false)}
+        />
+      )}
+
+      {confirmCancelId !== null && (
+        <ConfirmDialog
+          title="Cancel Invite"
+          message={`This will permanently delete the pending user account. They will no longer be able to use their invite link.`}
+          confirmLabel="Delete User"
+          onConfirm={() => void handleCancelInvite(confirmCancelId)}
+          onClose={() => setConfirmCancelId(null)}
         />
       )}
     </div>
