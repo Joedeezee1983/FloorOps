@@ -125,7 +125,7 @@ export default function MachineForm({ onClose, onCreated, initialMachine }: Mach
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
+      <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl p-6 overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-bold text-white">
             {isEditMode ? `Edit Machine — ${initialMachine!.assetNumber}` : 'Add Machine'}

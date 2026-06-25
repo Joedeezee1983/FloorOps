@@ -131,21 +131,21 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
   return (
     <div className="min-h-screen bg-gray-950">
       {/* Page header */}
-      <div className="px-8 pt-8 pb-4 border-b border-gray-800">
+      <div className="px-4 sm:px-8 pt-6 sm:pt-8 pb-4 border-b border-gray-800">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Machine Registry</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Machine Registry</h1>
             <p className="mt-1 text-gray-400">
               {isLoading ? 'Loading…' : `${total.toLocaleString()} machine${total !== 1 ? 's' : ''}`}
             </p>
           </div>
           {(isAdmin || userRole === 'SUPERVISOR') && (
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {isAdmin && (
                 <a
                   href="/api/machines/template"
                   download
-                  className="px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
+                  className="hidden sm:inline-flex px-4 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   CSV Template
                 </a>
@@ -153,23 +153,24 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
               {isAdmin && (
                 <button
                   onClick={() => setShowImport(true)}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-gray-700 rounded-lg hover:bg-gray-600 border border-gray-600 transition-colors"
+                  className="hidden sm:inline-flex px-4 py-2 text-sm font-semibold text-white bg-gray-700 rounded-lg hover:bg-gray-600 border border-gray-600 transition-colors"
                 >
                   Import CSV
                 </button>
               )}
               <button
                 onClick={() => setShowSync(true)}
-                className="px-4 py-2 text-sm font-semibold text-white bg-purple-700 rounded-lg hover:bg-purple-600 border border-purple-600 transition-colors"
+                className="px-3 sm:px-4 py-2 text-sm font-semibold text-white bg-purple-700 rounded-lg hover:bg-purple-600 border border-purple-600 transition-colors"
               >
-                Sync Report
+                Sync
               </button>
               {isAdmin && (
                 <button
                   onClick={() => setShowAddForm(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
                 >
-                  <span className="text-lg leading-none">+</span> Add Machine
+                  <span className="text-lg leading-none">+</span>
+                  <span className="hidden sm:inline">Add Machine</span>
                 </button>
               )}
             </div>
@@ -178,13 +179,13 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
       </div>
 
       {/* Filters */}
-      <div className="px-8 py-4 border-b border-gray-800 flex flex-wrap gap-3 items-center">
+      <div className="px-4 sm:px-8 py-4 border-b border-gray-800 flex flex-wrap gap-3 items-center">
         <input
           type="text"
           placeholder="Search asset #, bank, game name…"
           value={filters.search}
           onChange={handleFilterChange('search')}
-          className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none w-72"
+          className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none w-full sm:w-72"
         />
 
         <FilterSelect
@@ -236,7 +237,7 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
       </div>
 
       {/* Table */}
-      <div className="px-8 py-4">
+      <div className="px-4 sm:px-8 py-4">
         {fetchError ? (
           <p className="text-red-400 text-sm py-8 text-center">{fetchError}</p>
         ) : (
@@ -246,15 +247,15 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
                 <thead>
                   <tr className="border-b border-gray-800 bg-gray-900">
                     <Th>Asset #</Th>
-                    <Th>Bank</Th>
+                    <Th className="hidden sm:table-cell">Bank</Th>
                     <Th>Game Name</Th>
-                    <Th>Brand</Th>
-                    <Th>Type</Th>
-                    <Th>Progressive</Th>
-                    <Th>Denom</Th>
-                    <Th>Software</Th>
+                    <Th className="hidden md:table-cell">Brand</Th>
+                    <Th className="hidden md:table-cell">Type</Th>
+                    <Th className="hidden lg:table-cell">Progressive</Th>
+                    <Th className="hidden lg:table-cell">Denom</Th>
+                    <Th className="hidden xl:table-cell">Software</Th>
                     <Th>Status</Th>
-                    <Th>Location</Th>
+                    <Th className="hidden sm:table-cell">Location</Th>
                     {isAdmin && <Th>Actions</Th>}
                   </tr>
                 </thead>
@@ -262,11 +263,17 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
                   {isLoading ? (
                     Array.from({ length: 8 }, (_, i) => (
                       <tr key={i} className="border-b border-gray-800/50">
-                        {Array.from({ length: isAdmin ? 11 : 10 }, (__, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <div className="h-4 bg-gray-800 rounded animate-pulse" />
-                          </td>
-                        ))}
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden sm:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden md:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden md:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden lg:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden lg:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden xl:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        <td className="hidden sm:table-cell px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>
+                        {isAdmin && <td className="px-4 py-3"><div className="h-4 bg-gray-800 rounded animate-pulse" /></td>}
                       </tr>
                     ))
                   ) : machines.length === 0 ? (
@@ -383,15 +390,15 @@ function MachineRow({
       onClick={onRowClick}
     >
       <Td className="font-mono font-semibold text-white">{machine.assetNumber}</Td>
-      <Td>{machine.bankNumber}</Td>
+      <Td className="hidden sm:table-cell">{machine.bankNumber}</Td>
       <Td className="text-white">{machine.gameName}</Td>
-      <Td>{machine.gameBrand}</Td>
-      <Td>{machine.gameType}</Td>
-      <Td>{PROGRESSIVE_TYPE_LABELS[machine.progressiveType] ?? machine.progressiveType}</Td>
-      <Td className="font-mono">${machine.denomination.toFixed(2)}</Td>
-      <Td className="text-gray-500">{machine.softwareVersion ?? '—'}</Td>
+      <Td className="hidden md:table-cell">{machine.gameBrand}</Td>
+      <Td className="hidden md:table-cell">{machine.gameType}</Td>
+      <Td className="hidden lg:table-cell">{PROGRESSIVE_TYPE_LABELS[machine.progressiveType] ?? machine.progressiveType}</Td>
+      <Td className="hidden lg:table-cell font-mono">${machine.denomination.toFixed(2)}</Td>
+      <Td className="hidden xl:table-cell text-gray-500">{machine.softwareVersion ?? '—'}</Td>
       <Td><StatusBadge status={machine.status} size="sm" /></Td>
-      <Td>{machine.locationName ?? <span className="text-gray-600">—</span>}</Td>
+      <Td className="hidden sm:table-cell">{machine.locationName ?? <span className="text-gray-600">—</span>}</Td>
       {isAdmin && (
         <Td>
           {isDeleteConfirm ? (
@@ -434,9 +441,9 @@ function MachineRow({
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
-function Th({ children }: { children: React.ReactNode }) {
+function Th({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+    <th className={`px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap ${className}`}>
       {children}
     </th>
   )

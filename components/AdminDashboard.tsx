@@ -109,14 +109,14 @@ export default function AdminDashboard({ currentUserId }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-950">
-      <div className="px-8 pt-8 border-b border-gray-800">
-        <h1 className="text-3xl font-bold text-white mb-5">Admin</h1>
-        <div className="flex gap-1">
+      <div className="px-4 sm:px-8 pt-6 sm:pt-8 border-b border-gray-800">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-5">Admin</h1>
+        <div className="flex gap-1 overflow-x-auto pb-px">
           {ADMIN_TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              className={`shrink-0 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 activeTab === tab.id
                   ? 'text-white border-blue-500'
                   : 'text-gray-400 border-transparent hover:text-gray-200 hover:border-gray-600'
@@ -128,7 +128,7 @@ export default function AdminDashboard({ currentUserId }: AdminDashboardProps) {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 sm:p-8">
         {activeTab === 'users' && <UsersTab currentUserId={currentUserId} />}
         {activeTab === 'locations' && <LocationsTab />}
         {activeTab === 'settings' && <SettingsTab />}
@@ -241,8 +241,8 @@ function UsersTab({ currentUserId }: { currentUserId: string }) {
       {actionError && <p className="text-red-400 text-sm mb-4">{actionError}</p>}
 
       {isLoading ? <LoadingRows count={4} /> : (
-        <div className="rounded-xl border border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <TableHeader cols={['Name', 'Email', 'Role', 'Status', 'Created', 'Actions']} />
             <tbody className="divide-y divide-gray-800/50">
               {users.map((user) => (
@@ -393,8 +393,8 @@ function LocationsTab() {
       {fetchError && <p className="text-red-400 text-sm mb-4">{fetchError}</p>}
 
       {isLoading ? <LoadingRows count={3} /> : (
-        <div className="rounded-xl border border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-xl border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm min-w-[480px]">
             <TableHeader cols={['Name', 'Floor', 'Status', 'Machines', 'Created', 'Actions']} />
             <tbody className="divide-y divide-gray-800/50">
               {locations.map((loc) => (
@@ -949,7 +949,7 @@ function ConfirmDialog({
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="w-full max-w-sm rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6">
         <h2 className="text-base font-bold text-white mb-2">{title}</h2>
         <p className="text-sm text-gray-400 mb-6">{message}</p>
@@ -985,8 +985,8 @@ function Modal({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+      <div className="w-full h-full sm:h-auto sm:max-w-md sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h2 className="text-lg font-bold text-white">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -71,7 +71,7 @@ export default function BlueprintUploadModal({ onUploaded, onClose }: BlueprintU
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl">
+      <div className="w-full sm:max-w-md sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl mx-4 sm:mx-0">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">

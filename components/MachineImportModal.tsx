@@ -90,7 +90,7 @@ export default function MachineImportModal({ onClose, onImported }: MachineImpor
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-xl bg-gray-900 border border-gray-700 shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 shrink-0">

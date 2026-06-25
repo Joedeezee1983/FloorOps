@@ -50,6 +50,7 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [zoomLevel, setZoomLevel] = useState(DEFAULT_ZOOM)
+  const [showMobileGrid, setShowMobileGrid] = useState(false)
 
   const [blueprint, setBlueprint] = useState<BlueprintSummary | null>(initialBlueprint ?? null)
   const [showBlueprint, setShowBlueprint] = useState(true)
@@ -212,6 +213,7 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         blueprint={blueprint}
         showBlueprint={showBlueprint}
         blueprintOpacity={blueprintOpacity}
+        showMobileGrid={showMobileGrid}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onFitToScreen={fitToScreen}
@@ -219,83 +221,92 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         onToggleBlueprint={() => setShowBlueprint((v) => !v)}
         onOpacityChange={setBlueprintOpacity}
         onUploadBlueprint={() => setShowBlueprintUpload(true)}
+        onToggleMobileGrid={() => setShowMobileGrid((v) => !v)}
       />
 
-      {isAdmin && unplaced.length > 0 && (
-        <UnplacedBar
-          machines={unplaced}
-          isDragging={!!dragState}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onClick={(m) => setSelectedId(m.id)}
-        />
-      )}
-
-      <div
-        ref={scrollRef}
-        className={`overflow-auto flex-1 p-4 ${isGrabbing ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-        onMouseDown={startPan}
-      >
-        <div className="relative" style={{ width: gridW, height: gridH }}>
-          {/* Blueprint overlay — sits behind the grid cells */}
-          {blueprint && showBlueprint && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={blueprint.imageUrl}
-              alt="Floor blueprint"
-              className="absolute inset-0 w-full h-full pointer-events-none select-none"
-              style={{ opacity: blueprintOpacity, objectFit: 'fill', zIndex: 0 }}
-            />
-          )}
-
-          {/* Grid */}
-          <div
-            className="absolute inset-0 border border-gray-800 rounded-lg overflow-hidden"
-            style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)`, zIndex: 1 }}
-            onDragLeave={(e) => {
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setDragOverCell(null)
-              }
-            }}
-          >
-            {Array.from({ length: GRID_ROWS }, (_, y) =>
-              Array.from({ length: GRID_COLS }, (_, x) => {
-                const machine = machineGrid.get(cellKey(x, y)) ?? null
-                const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
-                const isOccupied = machine !== null && machine.id !== dragState?.machine.id
-
-                return (
-                  <GridCell
-                    key={cellKey(x, y)}
-                    x={x}
-                    y={y}
-                    machine={machine}
-                    isAdmin={isAdmin}
-                    isDragging={!!dragState}
-                    isHovered={isHovered}
-                    isOccupied={isOccupied}
-                    cellPx={cellPx}
-                    onDragOver={() => setDragOverCell({ x, y })}
-                    onDrop={() => handleDrop(x, y)}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    onClick={(m) => setSelectedId(m.id)}
-                  />
-                )
-              })
-            )}
-          </div>
-        </div>
+      {/* Mobile status summary — hidden on md+ screens */}
+      <div className={`md:hidden flex-1 overflow-y-auto ${showMobileGrid ? 'hidden' : ''}`}>
+        <MobileStatusSummary machines={machines} onShowFullMap={() => setShowMobileGrid(true)} />
       </div>
 
-      <MapLegend />
+      {/* Full map — always visible on md+, toggled by showMobileGrid on mobile */}
+      <div className={`flex flex-col flex-1 overflow-hidden ${showMobileGrid ? '' : 'hidden md:flex'}`}>
+        {isAdmin && unplaced.length > 0 && (
+          <UnplacedBar
+            machines={unplaced}
+            isDragging={!!dragState}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onClick={(m) => setSelectedId(m.id)}
+          />
+        )}
 
-      <MinimapPanel
-        machines={machines}
-        cellPx={cellPx}
-        scrollPos={scrollPos}
-        viewportSize={viewportSize}
-      />
+        <div
+          ref={scrollRef}
+          className={`overflow-auto flex-1 p-4 ${isGrabbing ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+          onMouseDown={startPan}
+        >
+          <div className="relative" style={{ width: gridW, height: gridH }}>
+            {/* Blueprint overlay — sits behind the grid cells */}
+            {blueprint && showBlueprint && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={blueprint.imageUrl}
+                alt="Floor blueprint"
+                className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                style={{ opacity: blueprintOpacity, objectFit: 'fill', zIndex: 0 }}
+              />
+            )}
+
+            {/* Grid */}
+            <div
+              className="absolute inset-0 border border-gray-800 rounded-lg overflow-hidden"
+              style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)`, zIndex: 1 }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDragOverCell(null)
+                }
+              }}
+            >
+              {Array.from({ length: GRID_ROWS }, (_, y) =>
+                Array.from({ length: GRID_COLS }, (_, x) => {
+                  const machine = machineGrid.get(cellKey(x, y)) ?? null
+                  const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
+                  const isOccupied = machine !== null && machine.id !== dragState?.machine.id
+
+                  return (
+                    <GridCell
+                      key={cellKey(x, y)}
+                      x={x}
+                      y={y}
+                      machine={machine}
+                      isAdmin={isAdmin}
+                      isDragging={!!dragState}
+                      isHovered={isHovered}
+                      isOccupied={isOccupied}
+                      cellPx={cellPx}
+                      onDragOver={() => setDragOverCell({ x, y })}
+                      onDrop={() => handleDrop(x, y)}
+                      onDragStart={handleDragStart}
+                      onDragEnd={handleDragEnd}
+                      onClick={(m) => setSelectedId(m.id)}
+                    />
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        <MapLegend />
+
+        <MinimapPanel
+          machines={machines}
+          cellPx={cellPx}
+          scrollPos={scrollPos}
+          viewportSize={viewportSize}
+        />
+      </div>
 
       <MachineDrawer
         machineId={selectedId}
@@ -331,6 +342,7 @@ interface MapHeaderProps {
   blueprint: BlueprintSummary | null
   showBlueprint: boolean
   blueprintOpacity: number
+  showMobileGrid: boolean
   onZoomIn: () => void
   onZoomOut: () => void
   onFitToScreen: () => void
@@ -338,27 +350,36 @@ interface MapHeaderProps {
   onToggleBlueprint: () => void
   onOpacityChange: (v: number) => void
   onUploadBlueprint: () => void
+  onToggleMobileGrid: () => void
 }
 
 function MapHeader({
-  isAdmin, lastUpdated, zoomLevel, blueprint, showBlueprint, blueprintOpacity,
-  onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint,
+  isAdmin, lastUpdated, zoomLevel, blueprint, showBlueprint, blueprintOpacity, showMobileGrid,
+  onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint, onToggleMobileGrid,
 }: MapHeaderProps) {
   const BTN = 'px-3 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors'
 
   return (
-    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 gap-4 flex-wrap">
+    <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-800 gap-3 flex-wrap">
       <div className="shrink-0">
-        <h1 className="text-2xl font-bold text-white">Floor Map</h1>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <h1 className="text-xl sm:text-2xl font-bold text-white">Floor Map</h1>
+        <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">
           Updated {lastUpdated.toLocaleTimeString()} · polls every 10s · {GRID_COLS}×{GRID_ROWS} grid
         </p>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        {/* Blueprint controls */}
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        {/* Mobile: toggle between summary and full map */}
+        <button
+          onClick={onToggleMobileGrid}
+          className={`md:hidden ${BTN} text-xs`}
+        >
+          {showMobileGrid ? 'Summary View' : 'Full Map'}
+        </button>
+
+        {/* Blueprint controls — hidden on mobile */}
         {blueprint && (
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
             <button onClick={onToggleBlueprint} className={`${BTN} ${showBlueprint ? 'text-blue-300 border-blue-700 bg-blue-900/30' : ''}`}>
               Blueprint {showBlueprint ? 'On' : 'Off'}
             </button>
@@ -381,24 +402,27 @@ function MapHeader({
         )}
 
         {isAdmin && (
-          <button onClick={onUploadBlueprint} className={BTN}>
+          <button onClick={onUploadBlueprint} className={`${BTN} hidden sm:block`}>
             {blueprint ? 'Replace Blueprint' : 'Upload Blueprint'}
           </button>
         )}
 
-        <ZoomControls
-          zoomLevel={zoomLevel}
-          onZoomIn={onZoomIn}
-          onZoomOut={onZoomOut}
-          onFitToScreen={onFitToScreen}
-        />
+        <div className="hidden md:block">
+          <ZoomControls
+            zoomLevel={zoomLevel}
+            onZoomIn={onZoomIn}
+            onZoomOut={onZoomOut}
+            onFitToScreen={onFitToScreen}
+          />
+        </div>
 
         {isAdmin && (
           <button
             onClick={onAddMachine}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
           >
-            <span className="text-lg leading-none">+</span> Add Machine
+            <span className="text-lg leading-none">+</span>
+            <span className="hidden sm:inline">Add Machine</span>
           </button>
         )}
       </div>
@@ -511,6 +535,78 @@ function GridCell({
           {x},{y}
         </div>
       )}
+    </div>
+  )
+}
+
+interface MobileStatusSummaryProps {
+  machines: MapMachine[]
+  onShowFullMap: () => void
+}
+
+function MobileStatusSummary({ machines, onShowFullMap }: MobileStatusSummaryProps) {
+  const counts: Record<MachineStatus, number> = {
+    ONLINE: 0,
+    OFFLINE: 0,
+    WARNING: 0,
+    MAINTENANCE: 0,
+  }
+  for (const m of machines) counts[m.status]++
+
+  const alertMachines = machines.filter((m) => m.status === 'OFFLINE' || m.status === 'WARNING')
+
+  const statusConfig: { status: MachineStatus; label: string; dotClass: string; countClass: string }[] = [
+    { status: 'ONLINE', label: 'Online', dotClass: 'bg-green-400', countClass: 'text-green-300' },
+    { status: 'OFFLINE', label: 'Offline', dotClass: 'bg-red-400', countClass: 'text-red-300' },
+    { status: 'WARNING', label: 'Warning', dotClass: 'bg-yellow-400', countClass: 'text-yellow-300' },
+    { status: 'MAINTENANCE', label: 'Maint.', dotClass: 'bg-orange-400', countClass: 'text-orange-300' },
+  ]
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Status count grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {statusConfig.map(({ status, label, dotClass, countClass }) => (
+          <div key={status} className="rounded-xl border border-gray-800 bg-gray-900/60 px-4 py-3 flex items-center gap-3">
+            <span className={`w-3 h-3 rounded-full shrink-0 ${dotClass}`} />
+            <div>
+              <p className={`text-xl font-bold ${countClass}`}>{counts[status]}</p>
+              <p className="text-xs text-gray-500">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Alert machines list */}
+      {alertMachines.length > 0 ? (
+        <div className="rounded-xl border border-gray-800 overflow-hidden">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 py-2.5 border-b border-gray-800 bg-gray-900">
+            Needs Attention ({alertMachines.length})
+          </p>
+          <ul className="divide-y divide-gray-800/50">
+            {alertMachines.map((m) => (
+              <li key={m.id} className="flex items-center gap-3 px-4 py-3">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${m.status === 'OFFLINE' ? 'bg-red-400' : 'bg-yellow-400'}`} />
+                <span className="font-mono text-xs text-white">#{m.assetNumber}</span>
+                <span className="text-sm text-gray-300 truncate flex-1">{m.gameName}</span>
+                {m.bankNumber && <span className="text-xs text-gray-500 shrink-0">{m.bankNumber}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/40 px-4 py-6 text-center">
+          <p className="text-sm text-green-400 font-medium">All machines online</p>
+          <p className="text-xs text-gray-500 mt-1">No machines require attention</p>
+        </div>
+      )}
+
+      <button
+        onClick={onShowFullMap}
+        className="w-full py-2.5 text-sm font-semibold text-white bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 transition-colors"
+      >
+        Open Full Map
+      </button>
     </div>
   )
 }

@@ -42,6 +42,7 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [isEndingShift, setIsEndingShift] = useState(false)
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false)
+  const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
 
   const loadShifts = useCallback(async () => {
     setIsLoadingShifts(true)
@@ -133,10 +134,10 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
   return (
     <div className="min-h-screen bg-gray-950">
       {/* Page header */}
-      <div className="px-8 pt-8 pb-4 border-b border-gray-800">
+      <div className="px-4 sm:px-8 pt-6 sm:pt-8 pb-4 border-b border-gray-800">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white">Shifts</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Shifts</h1>
             <p className="mt-1 text-gray-400">
               {isLoadingShifts ? 'Loading...' : `${shifts.length} shift${shifts.length !== 1 ? 's' : ''}`}
             </p>
@@ -144,17 +145,18 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
           {isSupervisorOrAbove && (
             <button
               onClick={() => setShowCreateForm(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
             >
-              <span className="text-lg leading-none">+</span> New Shift
+              <span className="text-lg leading-none">+</span>
+              <span className="hidden sm:inline">New Shift</span>
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-120px)]">
-        {/* Left: shifts list */}
-        <div className="w-80 shrink-0 border-r border-gray-800 overflow-y-auto">
+      <div className="flex flex-col md:flex-row md:h-[calc(100vh-120px)]">
+        {/* Left: shifts list — always visible on md+, shown on mobile when in list view */}
+        <div className={`md:block md:w-80 md:shrink-0 md:border-r md:border-b-0 border-b border-gray-800 overflow-y-auto ${mobileView === 'list' ? 'block' : 'hidden'}`}>
           {fetchError ? (
             <p className="text-red-400 text-sm p-6">{fetchError}</p>
           ) : isLoadingShifts ? (
@@ -182,17 +184,28 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
                   key={shift.id}
                   shift={shift}
                   isSelected={selectedShift?.id === shift.id}
-                  onClick={() => void loadShiftDetail(shift.id)}
+                  onClick={() => { setMobileView('detail'); void loadShiftDetail(shift.id) }}
                 />
               ))}
             </ul>
           )}
         </div>
 
-        {/* Right: shift detail */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Right: shift detail — always visible on md+, shown on mobile when in detail view */}
+        <div className={`md:flex md:flex-1 md:flex-col md:overflow-y-auto ${mobileView === 'detail' ? 'flex flex-col flex-1' : 'hidden'}`}>
+          {/* Mobile back button */}
+          <button
+            onClick={() => setMobileView('list')}
+            className="md:hidden flex items-center gap-2 px-4 py-3 text-sm text-gray-400 hover:text-white border-b border-gray-800 bg-gray-950 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Shifts
+          </button>
+
           {isLoadingDetail ? (
-            <div className="p-8 space-y-4">
+            <div className="p-6 sm:p-8 space-y-4">
               <div className="h-8 w-48 bg-gray-800 rounded animate-pulse" />
               <div className="h-4 w-64 bg-gray-800 rounded animate-pulse" />
             </div>
@@ -208,7 +221,7 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
               onEndShift={handleEndShift}
             />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-600">
+            <div className="hidden md:flex items-center justify-center h-full text-gray-600">
               <p>Select a shift to view its tasks</p>
             </div>
           )}
@@ -301,12 +314,12 @@ function ShiftDetailView({
   const end = new Date(shift.endTime)
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-8">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h2 className="text-2xl font-bold text-white">{shift.type} Shift</h2>
+      <div className="flex items-start justify-between mb-6 gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">{shift.type} Shift</h2>
             <ShiftStatusBadge status={shift.status} />
           </div>
           <p className="text-gray-400 text-sm">
@@ -323,7 +336,7 @@ function ShiftDetailView({
           )}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap justify-end">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end shrink-0">
           {downMachineCount > 0 && (
             <div className="flex items-center gap-2 bg-red-900/40 border border-red-700 rounded-lg px-3 py-2">
               <span className="text-red-300 text-sm font-semibold">{downMachineCount} machine{downMachineCount !== 1 ? 's' : ''} down</span>
@@ -615,7 +628,7 @@ function CreateShiftModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h2 className="text-lg font-bold text-white">Start New Shift</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
@@ -831,7 +844,7 @@ function LogTaskModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-gray-900 border border-gray-700 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
           <h2 className="text-lg font-bold text-white">Log Shift Task</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
