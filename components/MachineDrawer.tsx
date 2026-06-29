@@ -2,8 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import StatusBadge from '@/components/StatusBadge'
-import { MACHINE_STATUS_LABELS, PROGRESSIVE_TYPE_LABELS } from '@/constants'
-import type { MachineDetail, MachineStatus } from '@/types'
+import {
+  MACHINE_STATUS_LABELS,
+  PROGRESSIVE_TYPE_LABELS,
+  TASK_SECTION_LABELS,
+  TASK_STATUS_STYLES,
+} from '@/constants'
+import type {
+  MachineDetail,
+  MachineStatus,
+  MachineHistory,
+  RepairLogEntry,
+  StatusChangeEntry,
+  DowntimeStats,
+} from '@/types'
 
 export interface MachineDrawerProps {
   machineId: string | null
@@ -25,15 +37,36 @@ export default function MachineDrawer({
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [isRemovingFromMap, setIsRemovingFromMap] = useState(false)
   const [statusNote, setStatusNote] = useState('')
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details')
+  const [history, setHistory] = useState<MachineHistory | null>(null)
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   useEffect(() => {
-    if (!machineId) { setDetail(null); return }
+    if (!machineId) {
+      setDetail(null)
+      setHistory(null)
+      setActiveTab('details')
+      return
+    }
     setIsLoading(true)
+    setActiveTab('details')
+    setHistory(null)
     fetch(`/api/machines/${machineId}`)
       .then((r) => r.json())
       .then((json: { data: MachineDetail }) => { setDetail(json.data); setIsLoading(false) })
       .catch(() => setIsLoading(false))
   }, [machineId])
+
+  const handleTabChange = (tab: 'details' | 'history'): void => {
+    setActiveTab(tab)
+    if (tab === 'history' && machineId && !history && !isLoadingHistory) {
+      setIsLoadingHistory(true)
+      fetch(`/api/machines/${machineId}/history`)
+        .then((r) => r.json())
+        .then((json: { data: MachineHistory }) => { setHistory(json.data); setIsLoadingHistory(false) })
+        .catch(() => setIsLoadingHistory(false))
+    }
+  }
 
   const handleRemoveFromMap = async (): Promise<void> => {
     if (!detail) return
@@ -65,6 +98,8 @@ export default function MachineDrawer({
         onStatusChanged(detail.id, status)
         setDetail((prev) => prev ? { ...prev, status } : null)
         setStatusNote('')
+        // Invalidate cached history so it refreshes on next tab visit
+        setHistory(null)
       }
     } finally {
       setIsChangingStatus(false)
@@ -82,23 +117,31 @@ export default function MachineDrawer({
             {detail.activeShiftTask && (
               <DrawerShiftTaskBanner task={detail.activeShiftTask} />
             )}
-            <DrawerMeta detail={detail} />
-            {isAdmin && (
-              <DrawerStatusControls
-                detail={detail}
-                statusNote={statusNote}
-                isChangingStatus={isChangingStatus}
-                onNoteChange={setStatusNote}
-                onStatusChange={handleStatusChange}
-              />
+            <DrawerTabs activeTab={activeTab} onTabChange={handleTabChange} />
+            {activeTab === 'details' && (
+              <>
+                <DrawerMeta detail={detail} />
+                {isAdmin && (
+                  <DrawerStatusControls
+                    detail={detail}
+                    statusNote={statusNote}
+                    isChangingStatus={isChangingStatus}
+                    onNoteChange={setStatusNote}
+                    onStatusChange={handleStatusChange}
+                  />
+                )}
+                {isAdmin && detail.gridX !== null && (
+                  <DrawerMapControls
+                    isRemoving={isRemovingFromMap}
+                    onRemove={handleRemoveFromMap}
+                  />
+                )}
+                <DrawerStatusHistory detail={detail} />
+              </>
             )}
-            {isAdmin && detail.gridX !== null && (
-              <DrawerMapControls
-                isRemoving={isRemovingFromMap}
-                onRemove={handleRemoveFromMap}
-              />
+            {activeTab === 'history' && (
+              <DrawerHistory history={history} isLoading={isLoadingHistory} />
             )}
-            <DrawerStatusHistory detail={detail} />
           </>
         )}
       </div>
@@ -160,6 +203,32 @@ function DrawerShiftTaskBanner({
       <p className="text-xs text-orange-400 mt-1">
         Logged down by <span className="font-medium text-orange-300">{by}</span> at {since}
       </p>
+    </div>
+  )
+}
+
+function DrawerTabs({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: 'details' | 'history'
+  onTabChange: (tab: 'details' | 'history') => void
+}) {
+  return (
+    <div className="flex border-b border-gray-700 mt-2">
+      {(['details', 'history'] as const).map((tab) => (
+        <button
+          key={tab}
+          onClick={() => onTabChange(tab)}
+          className={`flex-1 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px capitalize
+            ${activeTab === tab
+              ? 'text-white border-blue-500'
+              : 'text-gray-500 hover:text-gray-300 border-transparent'
+            }`}
+        >
+          {tab}
+        </button>
+      ))}
     </div>
   )
 }
@@ -284,5 +353,139 @@ function DrawerStatusHistory({ detail }: { detail: MachineDetail }) {
         </ul>
       )}
     </div>
+  )
+}
+
+// ─── History tab ──────────────────────────────────────────────────────────────
+
+function DrawerHistory({
+  history,
+  isLoading,
+}: {
+  history: MachineHistory | null
+  isLoading: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!history) return null
+
+  return (
+    <div className="flex-1">
+      <DowntimeStatsPanel stats={history.downtimeStats} />
+      <RepairLogSection entries={history.repairLog} />
+      <StatusChangesSection entries={history.statusChanges} />
+    </div>
+  )
+}
+
+function DowntimeStatsPanel({ stats }: { stats: DowntimeStats }) {
+  return (
+    <div className="px-6 py-4 border-b border-gray-700">
+      <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Downtime Stats</p>
+      <div className="grid grid-cols-3 gap-4 text-center">
+        <div>
+          <p className="text-2xl font-bold text-white">{stats.timesLoggedThisMonth}</p>
+          <p className="text-xs text-gray-500 mt-0.5">This month</p>
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-white">{stats.timesLoggedAllTime}</p>
+          <p className="text-xs text-gray-500 mt-0.5">All time</p>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-white leading-tight">
+            {stats.mostRecentIssueDate
+              ? new Date(stats.mostRecentIssueDate).toLocaleDateString()
+              : '—'}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Last issue</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RepairLogSection({ entries }: { entries: RepairLogEntry[] }) {
+  return (
+    <div className="px-6 py-4 border-b border-gray-700">
+      <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Repair Log</p>
+      {entries.length === 0 ? (
+        <p className="text-sm text-gray-600">No repair history.</p>
+      ) : (
+        <ul className="space-y-3">
+          {entries.map((entry) => (
+            <RepairLogItem key={entry.id} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function RepairLogItem({ entry }: { entry: RepairLogEntry }) {
+  return (
+    <li className="rounded-lg bg-gray-800 border border-gray-700 p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="text-xs text-gray-400">
+          {new Date(entry.date).toLocaleDateString()}
+        </span>
+        <span className={`text-xs rounded px-1.5 py-0.5 font-medium ${TASK_STATUS_STYLES[entry.taskStatus]}`}>
+          {entry.taskStatus.replace('_', ' ')}
+        </span>
+      </div>
+      <p className="text-sm text-gray-200">{entry.description}</p>
+      <div className="flex items-center justify-between mt-1.5 gap-2">
+        <span className="text-xs text-gray-500">
+          {TASK_SECTION_LABELS[entry.section] ?? entry.section}
+        </span>
+        {entry.techName && (
+          <span className="text-xs text-gray-500">{entry.techName}</span>
+        )}
+      </div>
+    </li>
+  )
+}
+
+function StatusChangesSection({ entries }: { entries: StatusChangeEntry[] }) {
+  return (
+    <div className="px-6 py-4 flex-1">
+      <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Status Changes</p>
+      {entries.length === 0 ? (
+        <p className="text-sm text-gray-600">No status history.</p>
+      ) : (
+        <ul className="space-y-2">
+          {entries.map((entry) => (
+            <StatusChangeItem key={entry.id} entry={entry} />
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function StatusChangeItem({ entry }: { entry: StatusChangeEntry }) {
+  return (
+    <li className="flex items-start gap-3">
+      <div className="flex items-center gap-1.5 pt-0.5 shrink-0">
+        {entry.oldStatus ? (
+          <>
+            <StatusBadge status={entry.oldStatus} size="sm" />
+            <span className="text-gray-600 text-xs">→</span>
+          </>
+        ) : null}
+        <StatusBadge status={entry.newStatus} size="sm" />
+      </div>
+      <div className="flex-1 min-w-0">
+        {entry.note && <p className="text-xs text-gray-300 truncate">{entry.note}</p>}
+        <p className="text-xs text-gray-600">
+          {new Date(entry.changedAt).toLocaleString()}
+        </p>
+      </div>
+    </li>
   )
 }

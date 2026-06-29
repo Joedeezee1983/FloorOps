@@ -257,3 +257,32 @@ export interface DataStats {
   totalTasks: number
   totalMachines: number
 }
+
+export interface RepairLogEntry {
+  id: string
+  date: string
+  techName: string | null
+  description: string
+  section: TaskSection
+  taskStatus: TaskStatus
+}
+
+export interface StatusChangeEntry {
+  id: string
+  changedAt: string
+  oldStatus: MachineStatus | null
+  newStatus: MachineStatus
+  note: string | null
+}
+
+export interface DowntimeStats {
+  timesLoggedThisMonth: number
+  timesLoggedAllTime: number
+  mostRecentIssueDate: string | null
+}
+
+export interface MachineHistory {
+  repairLog: RepairLogEntry[]
+  statusChanges: StatusChangeEntry[]
+  downtimeStats: DowntimeStats
+}

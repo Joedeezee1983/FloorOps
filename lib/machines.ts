@@ -9,6 +9,9 @@ import type {
   CsvImportResult,
   CsvRowResult,
   ActiveShiftTaskInfo,
+  MachineHistory,
+  RepairLogEntry,
+  StatusChangeEntry,
 } from '@/types'
 
 // ─── Select shapes ────────────────────────────────────────────────────────────
@@ -168,6 +171,68 @@ export async function getMachineDetail(id: string): Promise<MachineDetail | null
       changedAt: log.changedAt.toISOString(),
     })),
     activeShiftTask: toActiveShiftTask(row.shiftTasks[0]),
+  }
+}
+
+/**
+ * Returns full repair log, status change history, and downtime stats for a machine.
+ * Status changes derive old→new from the chronological log order.
+ */
+export async function getMachineHistory(id: string): Promise<MachineHistory | null> {
+  const exists = await prisma.machine.findUnique({ where: { id }, select: { id: true } })
+  if (!exists) return null
+
+  const [tasks, statusLogs] = await Promise.all([
+    prisma.shiftTask.findMany({
+      where: { machineId: id },
+      select: {
+        id: true,
+        description: true,
+        section: true,
+        status: true,
+        loggedByName: true,
+        createdAt: true,
+        shift: { select: { startTime: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.machineStatusLog.findMany({
+      where: { machineId: id },
+      select: { id: true, status: true, note: true, changedAt: true },
+      orderBy: { changedAt: 'asc' },
+    }),
+  ])
+
+  // Derive old → new transitions from the chronological log, then reverse to newest-first
+  const statusChanges: StatusChangeEntry[] = statusLogs
+    .map((log, i) => ({
+      id: log.id,
+      changedAt: log.changedAt.toISOString(),
+      oldStatus: i > 0 ? statusLogs[i - 1].status : null,
+      newStatus: log.status,
+      note: log.note,
+    }))
+    .reverse()
+
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+  const timesLoggedAllTime = tasks.length
+  const timesLoggedThisMonth = tasks.filter((t) => t.createdAt >= startOfMonth).length
+  const mostRecentIssueDate = tasks[0]?.createdAt.toISOString() ?? null
+
+  const repairLog: RepairLogEntry[] = tasks.map((t) => ({
+    id: t.id,
+    date: t.shift.startTime.toISOString(),
+    techName: t.loggedByName,
+    description: t.description,
+    section: t.section,
+    taskStatus: t.status,
+  }))
+
+  return {
+    repairLog,
+    statusChanges,
+    downtimeStats: { timesLoggedThisMonth, timesLoggedAllTime, mostRecentIssueDate },
   }
 }
 
