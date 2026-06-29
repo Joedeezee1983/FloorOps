@@ -22,6 +22,7 @@ import type {
   UserRole,
   MachineSearchResult,
   UserSummary,
+  PartUrgency,
 } from '@/types'
 
 export interface ShiftDashboardProps {
@@ -39,6 +40,7 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [showPartForm, setShowPartForm] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [isEndingShift, setIsEndingShift] = useState(false)
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false)
@@ -217,6 +219,7 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
               isEndingShift={isEndingShift}
               isGeneratingBriefing={isGeneratingBriefing}
               onLogTask={() => setShowTaskForm(true)}
+              onRequestPart={() => setShowPartForm(true)}
               onTaskStatusUpdate={handleTaskStatusUpdate}
               onEndShift={handleEndShift}
             />
@@ -242,6 +245,14 @@ export default function ShiftDashboard({ userRole, userName, userId }: ShiftDash
           shiftId={selectedShift.id}
           onCreated={handleTaskCreated}
           onClose={() => setShowTaskForm(false)}
+        />
+      )}
+
+      {showPartForm && selectedShift && (
+        <RequestPartModal
+          shiftId={selectedShift.id}
+          locationId={selectedShift.locationId}
+          onClose={() => setShowPartForm(false)}
         />
       )}
     </div>
@@ -297,6 +308,7 @@ function ShiftDetailView({
   isEndingShift,
   isGeneratingBriefing,
   onLogTask,
+  onRequestPart,
   onTaskStatusUpdate,
   onEndShift,
 }: {
@@ -306,6 +318,7 @@ function ShiftDetailView({
   isEndingShift: boolean
   isGeneratingBriefing: boolean
   onLogTask: () => void
+  onRequestPart: () => void
   onTaskStatusUpdate: (taskId: string, status: TaskStatus) => void
   onEndShift: (shiftId: string) => void
 }) {
@@ -351,6 +364,15 @@ function ShiftDetailView({
             >
               Export PDF
             </a>
+          )}
+
+          {shift.status === 'ACTIVE' && (
+            <button
+              onClick={onRequestPart}
+              className="px-3 py-2 text-sm font-semibold bg-gray-700 text-gray-200 border border-gray-600 rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Request Part
+            </button>
           )}
 
           {isSupervisorOrAbove && shift.status === 'ACTIVE' && (
@@ -746,6 +768,235 @@ function CreateShiftModal({
             {isSubmitting ? 'Starting...' : 'Start Shift'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Request part modal ───────────────────────────────────────────────────────
+
+function RequestPartModal({
+  shiftId,
+  locationId,
+  onClose,
+}: {
+  shiftId: string
+  locationId: string
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [quantity, setQuantity] = useState('1')
+  const [urgency, setUrgency] = useState<PartUrgency>('NORMAL')
+  const [assetQuery, setAssetQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<MachineSearchResult[]>([])
+  const [selectedMachine, setSelectedMachine] = useState<MachineSearchResult | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
+  }, [])
+
+  const handleAssetQueryChange = (q: string) => {
+    setAssetQuery(q)
+    setSelectedMachine(null)
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    if (!q.trim()) { setSearchResults([]); return }
+
+    setIsSearching(true)
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/machines/search?q=${encodeURIComponent(q)}`)
+        const json = await res.json() as { data: MachineSearchResult[] }
+        setSearchResults(json.data ?? [])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 250)
+  }
+
+  const handleSelectMachine = (m: MachineSearchResult) => {
+    setSelectedMachine(m)
+    setAssetQuery(m.assetNumber)
+    setSearchResults([])
+  }
+
+  const handleSubmit = async (): Promise<void> => {
+    if (!name.trim()) { setError('Part name is required.'); return }
+    const qty = parseInt(quantity, 10)
+    if (!qty || qty < 1) { setError('Quantity must be at least 1.'); return }
+
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/parts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          quantity: qty,
+          urgency,
+          shiftId,
+          locationId,
+          machineId: selectedMachine?.id ?? undefined,
+        }),
+      })
+      const json = await res.json() as { error?: string }
+      if (!res.ok) { setError(json.error ?? 'Failed to submit request.'); return }
+      setSuccess(true)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-xl bg-gray-900 sm:border border-gray-700 shadow-2xl overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700 sticky top-0 bg-gray-900 z-10">
+          <h2 className="text-lg font-bold text-white">Request Part</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors" aria-label="Close">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {success ? (
+          <div className="px-6 py-10 text-center">
+            <p className="text-green-300 font-semibold text-base mb-2">Request submitted</p>
+            <p className="text-gray-400 text-sm mb-6">The inventory tech will be notified.</p>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Part name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Bill validator, TITO printer"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Description (optional)</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Model number, additional details..."
+                  className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Quantity</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={quantity}
+                    onChange={(e) => setQuantity(e.target.value)}
+                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Priority</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['NORMAL', 'URGENT'] as PartUrgency[]).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => setUrgency(u)}
+                        className={`py-2 text-xs font-medium rounded-lg border transition-colors ${
+                          urgency === u
+                            ? u === 'URGENT' ? 'bg-red-700 border-red-600 text-white' : 'bg-blue-600 border-blue-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                        }`}
+                      >
+                        {u === 'URGENT' ? 'Urgent' : 'Normal'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Machine (optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={assetQuery}
+                    onChange={(e) => handleAssetQueryChange(e.target.value)}
+                    placeholder="Search by asset # or game name..."
+                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                  {isSearching && (
+                    <div className="absolute right-3 top-2.5 text-xs text-gray-500">Searching...</div>
+                  )}
+                  {searchResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-700 bg-gray-800 shadow-xl overflow-hidden">
+                      {searchResults.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => handleSelectMachine(m)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-700 transition-colors text-left"
+                        >
+                          <span className="font-mono text-sm text-white">{m.assetNumber}</span>
+                          <span className="text-xs text-gray-400 flex-1 truncate">{m.gameName}</span>
+                          <span className="text-xs text-gray-500">{m.bankNumber}</span>
+                          <StatusBadge status={m.status} size="sm" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {selectedMachine && (
+                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-blue-900/20 border border-blue-800 px-3 py-2">
+                    <span className="font-mono text-xs text-white">#{selectedMachine.assetNumber}</span>
+                    <span className="text-xs text-gray-300">{selectedMachine.gameName}</span>
+                    <StatusBadge status={selectedMachine.status} size="sm" />
+                    <button
+                      onClick={() => { setSelectedMachine(null); setAssetQuery('') }}
+                      className="ml-auto text-xs text-gray-500 hover:text-red-400 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-900/40 border border-red-800 px-4 py-3 text-sm text-red-400">{error}</div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">
+              <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmitting ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

@@ -163,6 +163,7 @@ export interface UpdateSettingsInput {
   nightShiftStart?: string
   nightShiftEnd?: string
   shiftTimeoutHours?: number
+  inventoryEmail?: string | null
 }
 
 /**

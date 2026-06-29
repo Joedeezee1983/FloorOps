@@ -64,6 +64,54 @@ export async function sendEmailConfirmEmail(to: string, token: string): Promise<
   })
 }
 
+export interface PartRequestEmailData {
+  partName: string
+  quantity: number
+  urgency: string
+  description: string | null
+  machineInfo: string | null
+  requestedByName: string | null
+  notes: string | null
+}
+
+/**
+ * Sends a part request notification to the inventory tech.
+ */
+export async function sendPartRequestEmail(to: string, data: PartRequestEmailData): Promise<void> {
+  const urgencyLabel = data.urgency === 'URGENT' ? 'URGENT' : 'Normal'
+  const rows = [
+    `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Part</td><td style="color:#f8fafc;padding:4px 0;font-size:13px;font-weight:600">${data.partName}</td></tr>`,
+    `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Quantity</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.quantity}</td></tr>`,
+    `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Priority</td><td style="padding:4px 0"><span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;background:${data.urgency === 'URGENT' ? '#7f1d1d' : '#1e3a5f'};color:${data.urgency === 'URGENT' ? '#fca5a5' : '#93c5fd'}">${urgencyLabel}</span></td></tr>`,
+    data.machineInfo ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Machine</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.machineInfo}</td></tr>` : '',
+    data.description ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Description</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.description}</td></tr>` : '',
+    data.requestedByName ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Requested by</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.requestedByName}</td></tr>` : '',
+    data.notes ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Notes</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.notes}</td></tr>` : '',
+  ].filter(Boolean).join('')
+
+  const html = `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <div style="max-width:480px;margin:40px auto;padding:0 16px">
+    <div style="background:#1e293b;border-radius:12px;border:1px solid #334155;padding:32px">
+      <p style="color:#94a3b8;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;margin:0 0 4px">FloorOps</p>
+      <div style="height:1px;background:#334155;margin:12px 0 24px"></div>
+      <h2 style="color:#f8fafc;font-size:18px;font-weight:600;margin:0 0 16px">New Part Request</h2>
+      <table style="width:100%;border-collapse:collapse">${rows}</table>
+      <p style="color:#64748b;font-size:12px;margin:24px 0 0">Log in to FloorOps to update the request status.</p>
+    </div>
+  </div>
+</body>
+</html>`
+
+  await getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `${data.urgency === 'URGENT' ? '[URGENT] ' : ''}Part Request: ${data.partName}`,
+    html,
+  })
+}
+
 interface EmailOptions {
   heading: string
   body: string

@@ -45,6 +45,12 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       nightShiftEnd: typeof body.nightShiftEnd === 'string' ? body.nightShiftEnd : undefined,
       shiftTimeoutHours:
         typeof body.shiftTimeoutHours === 'number' ? body.shiftTimeoutHours : undefined,
+      inventoryEmail:
+        typeof body.inventoryEmail === 'string'
+          ? body.inventoryEmail.trim() || null
+          : body.inventoryEmail === null
+          ? null
+          : undefined,
     })
 
     return NextResponse.json({ data: settings })

@@ -7,6 +7,8 @@ import type {
   SystemSettingsData,
   DataStats,
   UserRole,
+  PartRequestSummary,
+  PartStatus,
 } from '@/types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -30,10 +32,28 @@ const ADMIN_TABS = [
   { id: 'users', label: 'Users' },
   { id: 'locations', label: 'Locations' },
   { id: 'settings', label: 'Settings' },
+  { id: 'parts', label: 'Parts' },
   { id: 'data', label: 'Data' },
 ] as const
 
 type AdminTab = typeof ADMIN_TABS[number]['id']
+
+const PART_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  ORDERED: 'Ordered',
+  RECEIVED: 'Received',
+}
+
+const PART_STATUS_STYLES: Record<string, string> = {
+  PENDING: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
+  ORDERED: 'bg-blue-900/40 text-blue-300 border border-blue-700',
+  RECEIVED: 'bg-green-900/40 text-green-300 border border-green-700',
+}
+
+const PART_URGENCY_STYLES: Record<string, string> = {
+  URGENT: 'bg-red-900/40 text-red-300 border border-red-700',
+  NORMAL: 'bg-gray-700/60 text-gray-300 border border-gray-600',
+}
 
 const DEFAULT_SETTINGS: Omit<SystemSettingsData, 'id' | 'locationId'> = {
   dayShiftStart: '06:00',
@@ -43,6 +63,7 @@ const DEFAULT_SETTINGS: Omit<SystemSettingsData, 'id' | 'locationId'> = {
   nightShiftStart: '22:00',
   nightShiftEnd: '06:00',
   shiftTimeoutHours: 10,
+  inventoryEmail: null,
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -132,6 +153,7 @@ export default function AdminDashboard({ currentUserId }: AdminDashboardProps) {
         {activeTab === 'users' && <UsersTab currentUserId={currentUserId} />}
         {activeTab === 'locations' && <LocationsTab />}
         {activeTab === 'settings' && <SettingsTab />}
+        {activeTab === 'parts' && <PartsTab />}
         {activeTab === 'data' && <DataTab />}
       </div>
     </div>
@@ -454,12 +476,13 @@ interface SettingsForm {
   nightShiftStart: string
   nightShiftEnd: string
   shiftTimeoutHours: number
+  inventoryEmail: string
 }
 
 function SettingsTab() {
   const [locations, setLocations] = useState<AdminLocationItem[]>([])
   const [selectedLocationId, setSelectedLocationId] = useState('')
-  const [form, setForm] = useState<SettingsForm>(DEFAULT_SETTINGS)
+  const [form, setForm] = useState<SettingsForm>({ ...DEFAULT_SETTINGS, inventoryEmail: '' })
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -486,7 +509,8 @@ function SettingsTab() {
           nightShiftStart: json.data.nightShiftStart,
           nightShiftEnd: json.data.nightShiftEnd,
           shiftTimeoutHours: json.data.shiftTimeoutHours,
-        } : DEFAULT_SETTINGS)
+          inventoryEmail: json.data.inventoryEmail ?? '',
+        } : { ...DEFAULT_SETTINGS, inventoryEmail: '' })
       })
       .catch(() => undefined)
   }, [selectedLocationId])
@@ -499,7 +523,11 @@ function SettingsTab() {
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locationId: selectedLocationId, ...form }),
+        body: JSON.stringify({
+          locationId: selectedLocationId,
+          ...form,
+          inventoryEmail: form.inventoryEmail.trim() || null,
+        }),
       })
       setSaveMessage(res.ok
         ? { type: 'success', text: 'Settings saved.' }
@@ -515,6 +543,7 @@ function SettingsTab() {
   const setField = (key: keyof SettingsForm, value: string | number): void => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
+
 
   return (
     <div className="max-w-xl">
@@ -573,6 +602,20 @@ function SettingsTab() {
             </div>
           </div>
 
+          <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-5">
+            <p className="text-sm font-medium text-white mb-1">Inventory Tech Email</p>
+            <p className="text-xs text-gray-500 mb-4">
+              Part request notifications will be sent to this address.
+            </p>
+            <input
+              type="email"
+              value={form.inventoryEmail}
+              onChange={(e) => setField('inventoryEmail', e.target.value)}
+              placeholder="inventory@example.com"
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
           {saveMessage && (
             <p className={`text-sm ${saveMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
               {saveMessage.text}
@@ -628,6 +671,118 @@ function ShiftTimeBlock({
           />
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Parts tab ────────────────────────────────────────────────────────────────
+
+function PartsTab() {
+  const [parts, setParts] = useState<PartRequestSummary[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const loadParts = useCallback(async () => {
+    setIsLoading(true)
+    setFetchError(null)
+    try {
+      const res = await fetch('/api/parts')
+      if (!res.ok) throw new Error('Failed to load')
+      const json = await res.json() as { data: PartRequestSummary[] }
+      setParts(json.data)
+    } catch {
+      setFetchError('Failed to load part requests.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { void loadParts() }, [loadParts])
+
+  const handleStatusChange = async (id: string, status: PartStatus): Promise<void> => {
+    setUpdatingId(id)
+    try {
+      const res = await fetch(`/api/parts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) return
+      const json = await res.json() as { data: PartRequestSummary }
+      setParts((prev) => prev.map((p) => p.id === id ? json.data : p))
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold text-white">
+          Part Requests <span className="text-gray-500 font-normal text-sm">({parts.length})</span>
+        </h2>
+      </div>
+
+      {fetchError && <p className="text-red-400 text-sm mb-4">{fetchError}</p>}
+
+      {isLoading ? <LoadingRows count={4} /> : parts.length === 0 ? (
+        <div className="rounded-xl border border-gray-800 p-10 text-center">
+          <p className="text-gray-500 text-sm">No part requests yet.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-800 overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
+            <TableHeader cols={['Part', 'Machine', 'Qty', 'Priority', 'Status', 'Requested By', 'Date', 'Update']} />
+            <tbody className="divide-y divide-gray-800/50">
+              {parts.map((part) => (
+                <tr key={part.id} className="bg-gray-900/30 hover:bg-gray-900/60 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="font-medium text-white">{part.name}</p>
+                    {part.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{part.description}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">
+                    {part.machine ? (
+                      <span className="font-mono text-xs">#{part.machine.assetNumber}</span>
+                    ) : (
+                      <span className="text-gray-600">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-gray-300">{part.quantity}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PART_URGENCY_STYLES[part.urgency] ?? ''}`}>
+                      {part.urgency === 'URGENT' ? 'Urgent' : 'Normal'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PART_STATUS_STYLES[part.status] ?? ''}`}>
+                      {PART_STATUS_LABELS[part.status] ?? part.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-400 text-xs">{part.requestedByName ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">
+                    {new Date(part.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={part.status}
+                      disabled={updatingId === part.id}
+                      onChange={(e) => void handleStatusChange(part.id, e.target.value as PartStatus)}
+                      className="text-xs rounded-lg border border-gray-700 bg-gray-800 text-white px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                    >
+                      {(['PENDING', 'ORDERED', 'RECEIVED'] as PartStatus[]).map((s) => (
+                        <option key={s} value={s}>{PART_STATUS_LABELS[s]}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

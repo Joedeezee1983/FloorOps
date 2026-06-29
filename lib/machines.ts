@@ -12,6 +12,7 @@ import type {
   MachineHistory,
   RepairLogEntry,
   StatusChangeEntry,
+  MachinePartEntry,
 } from '@/types'
 
 // ─── Select shapes ────────────────────────────────────────────────────────────
@@ -182,7 +183,7 @@ export async function getMachineHistory(id: string): Promise<MachineHistory | nu
   const exists = await prisma.machine.findUnique({ where: { id }, select: { id: true } })
   if (!exists) return null
 
-  const [tasks, statusLogs] = await Promise.all([
+  const [tasks, statusLogs, partRows] = await Promise.all([
     prisma.shiftTask.findMany({
       where: { machineId: id },
       select: {
@@ -200,6 +201,19 @@ export async function getMachineHistory(id: string): Promise<MachineHistory | nu
       where: { machineId: id },
       select: { id: true, status: true, note: true, changedAt: true },
       orderBy: { changedAt: 'asc' },
+    }),
+    prisma.partRequest.findMany({
+      where: { machineId: id },
+      select: {
+        id: true,
+        name: true,
+        quantity: true,
+        urgency: true,
+        status: true,
+        createdAt: true,
+        requestedBy: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
     }),
   ])
 
@@ -229,10 +243,21 @@ export async function getMachineHistory(id: string): Promise<MachineHistory | nu
     taskStatus: t.status,
   }))
 
+  const partRequests: MachinePartEntry[] = partRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    quantity: p.quantity,
+    urgency: p.urgency,
+    status: p.status,
+    createdAt: p.createdAt.toISOString(),
+    requestedByName: p.requestedBy.name,
+  }))
+
   return {
     repairLog,
     statusChanges,
     downtimeStats: { timesLoggedThisMonth, timesLoggedAllTime, mostRecentIssueDate },
+    partRequests,
   }
 }
 

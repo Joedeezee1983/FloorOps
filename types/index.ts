@@ -7,9 +7,11 @@ import type {
   TaskType,
   TaskStatus,
   TaskSection,
+  PartUrgency,
+  PartStatus,
 } from '@prisma/client'
 
-export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus, TaskSection }
+export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus, TaskSection, PartUrgency, PartStatus }
 
 export interface SessionUser {
   id: string
@@ -250,6 +252,7 @@ export interface SystemSettingsData {
   nightShiftStart: string
   nightShiftEnd: string
   shiftTimeoutHours: number
+  inventoryEmail: string | null
 }
 
 export interface DataStats {
@@ -281,8 +284,35 @@ export interface DowntimeStats {
   mostRecentIssueDate: string | null
 }
 
+export interface MachinePartEntry {
+  id: string
+  name: string
+  quantity: number
+  urgency: PartUrgency
+  status: PartStatus
+  requestedByName: string | null
+  createdAt: string
+}
+
+export interface PartRequestSummary {
+  id: string
+  name: string
+  description: string | null
+  quantity: number
+  urgency: PartUrgency
+  status: PartStatus
+  orderedAt: string | null
+  receivedAt: string | null
+  notes: string | null
+  createdAt: string
+  shiftId: string | null
+  requestedByName: string | null
+  machine: { id: string; assetNumber: string; gameName: string } | null
+}
+
 export interface MachineHistory {
   repairLog: RepairLogEntry[]
   statusChanges: StatusChangeEntry[]
   downtimeStats: DowntimeStats
+  partRequests: MachinePartEntry[]
 }

@@ -15,6 +15,7 @@ import type {
   RepairLogEntry,
   StatusChangeEntry,
   DowntimeStats,
+  MachinePartEntry,
 } from '@/types'
 
 export interface MachineDrawerProps {
@@ -379,6 +380,7 @@ function DrawerHistory({
     <div className="flex-1">
       <DowntimeStatsPanel stats={history.downtimeStats} />
       <RepairLogSection entries={history.repairLog} />
+      <PartsRequestedSection entries={history.partRequests} />
       <StatusChangesSection entries={history.statusChanges} />
     </div>
   )
@@ -448,6 +450,48 @@ function RepairLogItem({ entry }: { entry: RepairLogEntry }) {
         )}
       </div>
     </li>
+  )
+}
+
+const PART_STATUS_STYLES: Record<string, string> = {
+  PENDING: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
+  ORDERED: 'bg-blue-900/40 text-blue-300 border border-blue-700',
+  RECEIVED: 'bg-green-900/40 text-green-300 border border-green-700',
+}
+
+function PartsRequestedSection({ entries }: { entries: MachinePartEntry[] }) {
+  return (
+    <div className="px-6 py-4 border-b border-gray-700">
+      <p className="text-xs font-medium text-gray-400 mb-3 uppercase tracking-wider">Parts Requested</p>
+      {entries.length === 0 ? (
+        <p className="text-sm text-gray-600">No parts requested for this machine.</p>
+      ) : (
+        <ul className="space-y-2">
+          {entries.map((entry) => (
+            <li key={entry.id} className="rounded-lg bg-gray-800 border border-gray-700 p-3">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-sm font-medium text-gray-200">{entry.name}</span>
+                <span className={`text-xs rounded px-1.5 py-0.5 font-medium ${PART_STATUS_STYLES[entry.status] ?? ''}`}>
+                  {entry.status}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500">Qty: {entry.quantity}</span>
+                {entry.urgency === 'URGENT' && (
+                  <span className="text-xs text-red-400 font-medium">Urgent</span>
+                )}
+                <span className="text-xs text-gray-600 ml-auto">
+                  {new Date(entry.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              {entry.requestedByName && (
+                <p className="text-xs text-gray-600 mt-1">{entry.requestedByName}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

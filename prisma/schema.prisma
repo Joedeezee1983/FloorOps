@@ -72,12 +72,13 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  location    Location?    @relation(fields: [locationId], references: [id])
-  sessions    Session[]
-  accounts    Account[]
-  shifts      Shift[]      @relation("ShiftSupervisor")
-  shiftStaff  ShiftStaff[]
-  tokens      UserToken[]
+  location     Location?    @relation(fields: [locationId], references: [id])
+  sessions     Session[]
+  accounts     Account[]
+  shifts       Shift[]      @relation("ShiftSupervisor")
+  shiftStaff   ShiftStaff[]
+  tokens       UserToken[]
+  partRequests PartRequest[]
 
   @@index([email])
   @@index([locationId])
@@ -127,6 +128,17 @@ enum TokenType {
   INVITE
   PASSWORD_RESET
   EMAIL_CONFIRM
+}
+
+enum PartUrgency {
+  NORMAL
+  URGENT
+}
+
+enum PartStatus {
+  PENDING
+  ORDERED
+  RECEIVED
 }
 
 model UserToken {
@@ -180,9 +192,10 @@ model Machine {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  location   Location?          @relation(fields: [locationId], references: [id])
-  statusLogs MachineStatusLog[]
-  shiftTasks ShiftTask[]
+  location     Location?          @relation(fields: [locationId], references: [id])
+  statusLogs   MachineStatusLog[]
+  shiftTasks   ShiftTask[]
+  partRequests PartRequest[]
 
   @@index([locationId])
   @@index([status])
@@ -231,11 +244,12 @@ model Shift {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  location    Location       @relation(fields: [locationId], references: [id])
-  supervisor  User?          @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
-  tasks       ShiftTask[]
-  staff       ShiftStaff[]
-  aiBriefing  ShiftBriefing?
+  location     Location       @relation(fields: [locationId], references: [id])
+  supervisor   User?          @relation("ShiftSupervisor", fields: [supervisorId], references: [id])
+  tasks        ShiftTask[]
+  staff        ShiftStaff[]
+  aiBriefing   ShiftBriefing?
+  partRequests PartRequest[]
 
   @@index([locationId])
   @@index([supervisorId])
@@ -295,8 +309,36 @@ model SystemSettings {
   nightShiftStart   String   @default("22:00")
   nightShiftEnd     String   @default("06:00")
   shiftTimeoutHours Int      @default(10)
+  inventoryEmail    String?
 
   location Location @relation(fields: [locationId], references: [id])
 
   @@index([locationId])
+}
+
+model PartRequest {
+  id            String      @id @default(cuid())
+  machineId     String?
+  shiftId       String?
+  requestedById String
+  name          String
+  description   String?
+  quantity      Int         @default(1)
+  urgency       PartUrgency @default(NORMAL)
+  status        PartStatus  @default(PENDING)
+  orderedAt     DateTime?
+  receivedAt    DateTime?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  machine     Machine? @relation(fields: [machineId], references: [id])
+  shift       Shift?   @relation(fields: [shiftId], references: [id])
+  requestedBy User     @relation(fields: [requestedById], references: [id])
+
+  @@index([machineId])
+  @@index([shiftId])
+  @@index([requestedById])
+  @@index([status])
+  @@index([createdAt])
 }
