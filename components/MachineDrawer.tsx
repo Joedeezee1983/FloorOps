@@ -457,6 +457,7 @@ const PART_STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
   ORDERED: 'bg-blue-900/40 text-blue-300 border border-blue-700',
   RECEIVED: 'bg-green-900/40 text-green-300 border border-green-700',
+  CANCELLED: 'bg-gray-800/60 text-gray-500 border border-gray-700',
 }
 
 function PartsRequestedSection({ entries }: { entries: MachinePartEntry[] }) {

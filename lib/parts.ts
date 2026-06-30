@@ -14,6 +14,7 @@ const PART_REQUEST_SELECT = {
   notes: true,
   createdAt: true,
   shiftId: true,
+  requestedById: true,
   requestedBy: { select: { name: true } },
   machine: { select: { id: true, assetNumber: true, gameName: true } },
 } as const
@@ -30,6 +31,7 @@ type PartRequestRow = {
   notes: string | null
   createdAt: Date
   shiftId: string | null
+  requestedById: string
   requestedBy: { name: string | null }
   machine: { id: string; assetNumber: string; gameName: string } | null
 }
@@ -47,6 +49,7 @@ function mapPartRequest(r: PartRequestRow): PartRequestSummary {
     notes: r.notes,
     createdAt: r.createdAt.toISOString(),
     shiftId: r.shiftId,
+    requestedById: r.requestedById,
     requestedByName: r.requestedBy.name,
     machine: r.machine ?? null,
   }

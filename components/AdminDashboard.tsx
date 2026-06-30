@@ -42,13 +42,17 @@ const PART_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   ORDERED: 'Ordered',
   RECEIVED: 'Received',
+  CANCELLED: 'Cancelled',
 }
 
 const PART_STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
   ORDERED: 'bg-blue-900/40 text-blue-300 border border-blue-700',
   RECEIVED: 'bg-green-900/40 text-green-300 border border-green-700',
+  CANCELLED: 'bg-gray-800/60 text-gray-500 border border-gray-700',
 }
+
+const ACTIVE_PART_STATUSES = new Set<PartStatus>(['PENDING', 'ORDERED', 'RECEIVED'])
 
 const PART_URGENCY_STYLES: Record<string, string> = {
   URGENT: 'bg-red-900/40 text-red-300 border border-red-700',
@@ -682,6 +686,7 @@ function PartsTab() {
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
 
   const loadParts = useCallback(async () => {
     setIsLoading(true)
@@ -716,11 +721,36 @@ function PartsTab() {
     }
   }
 
+  const handleCancelConfirm = async (): Promise<void> => {
+    if (!cancelConfirmId) return
+    const id = cancelConfirmId
+    setCancelConfirmId(null)
+    setUpdatingId(id)
+    try {
+      const res = await fetch(`/api/parts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      })
+      if (!res.ok) return
+      const json = await res.json() as { data: PartRequestSummary }
+      setParts((prev) => prev.map((p) => p.id === id ? json.data : p))
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const activeCount = parts.filter((p) => ACTIVE_PART_STATUSES.has(p.status)).length
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-white">
-          Part Requests <span className="text-gray-500 font-normal text-sm">({parts.length})</span>
+          Part Requests{' '}
+          <span className="text-gray-500 font-normal text-sm">
+            {activeCount} active
+            {parts.length !== activeCount && ` · ${parts.length} total`}
+          </span>
         </h2>
       </div>
 
@@ -732,56 +762,90 @@ function PartsTab() {
         </div>
       ) : (
         <div className="rounded-xl border border-gray-800 overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
-            <TableHeader cols={['Part', 'Machine', 'Qty', 'Priority', 'Status', 'Requested By', 'Date', 'Update']} />
+          <table className="w-full text-sm min-w-[800px]">
+            <TableHeader cols={['Part', 'Machine', 'Qty', 'Priority', 'Status', 'Requested By', 'Date', 'Update', '']} />
             <tbody className="divide-y divide-gray-800/50">
-              {parts.map((part) => (
-                <tr key={part.id} className="bg-gray-900/30 hover:bg-gray-900/60 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-white">{part.name}</p>
-                    {part.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{part.description}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">
-                    {part.machine ? (
-                      <span className="font-mono text-xs">#{part.machine.assetNumber}</span>
-                    ) : (
-                      <span className="text-gray-600">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-gray-300">{part.quantity}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PART_URGENCY_STYLES[part.urgency] ?? ''}`}>
-                      {part.urgency === 'URGENT' ? 'Urgent' : 'Normal'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PART_STATUS_STYLES[part.status] ?? ''}`}>
-                      {PART_STATUS_LABELS[part.status] ?? part.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{part.requestedByName ?? '—'}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">
-                    {new Date(part.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={part.status}
-                      disabled={updatingId === part.id}
-                      onChange={(e) => void handleStatusChange(part.id, e.target.value as PartStatus)}
-                      className="text-xs rounded-lg border border-gray-700 bg-gray-800 text-white px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                    >
-                      {(['PENDING', 'ORDERED', 'RECEIVED'] as PartStatus[]).map((s) => (
-                        <option key={s} value={s}>{PART_STATUS_LABELS[s]}</option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
+              {parts.map((part) => {
+                const isCancelled = part.status === 'CANCELLED'
+                const isBusy = updatingId === part.id
+                return (
+                  <tr
+                    key={part.id}
+                    className={`transition-colors ${isCancelled ? 'opacity-50' : 'bg-gray-900/30 hover:bg-gray-900/60'}`}
+                  >
+                    <td className="px-4 py-3">
+                      <p className={`font-medium ${isCancelled ? 'text-gray-500 line-through' : 'text-white'}`}>
+                        {part.name}
+                      </p>
+                      {part.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{part.description}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-300">
+                      {part.machine ? (
+                        <span className="font-mono text-xs">#{part.machine.assetNumber}</span>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-300">{part.quantity}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isCancelled ? 'bg-gray-800/60 text-gray-600 border border-gray-700' : (PART_URGENCY_STYLES[part.urgency] ?? '')}`}>
+                        {part.urgency === 'URGENT' ? 'Urgent' : 'Normal'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PART_STATUS_STYLES[part.status] ?? ''}`}>
+                        {PART_STATUS_LABELS[part.status] ?? part.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">{part.requestedByName ?? '—'}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {new Date(part.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      {isCancelled ? (
+                        <span className="text-xs text-gray-600">—</span>
+                      ) : (
+                        <select
+                          value={part.status}
+                          disabled={isBusy}
+                          onChange={(e) => void handleStatusChange(part.id, e.target.value as PartStatus)}
+                          className="text-xs rounded-lg border border-gray-700 bg-gray-800 text-white px-2 py-1 cursor-pointer focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                        >
+                          {(['PENDING', 'ORDERED', 'RECEIVED'] as PartStatus[]).map((s) => (
+                            <option key={s} value={s}>{PART_STATUS_LABELS[s]}</option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {!isCancelled && (
+                        <button
+                          onClick={() => setCancelConfirmId(part.id)}
+                          disabled={isBusy}
+                          className="text-xs text-gray-500 hover:text-red-400 transition-colors disabled:opacity-40"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {cancelConfirmId !== null && (
+        <ConfirmDialog
+          title="Cancel Part Request"
+          message="This will mark the part request as cancelled. It will remain visible in history but excluded from active counts."
+          confirmLabel="Cancel Request"
+          onConfirm={() => void handleCancelConfirm()}
+          onClose={() => setCancelConfirmId(null)}
+        />
       )}
     </div>
   )

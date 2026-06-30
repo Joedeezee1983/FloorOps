@@ -306,6 +306,7 @@ export interface PartRequestSummary {
   notes: string | null
   createdAt: string
   shiftId: string | null
+  requestedById: string
   requestedByName: string | null
   machine: { id: string; assetNumber: string; gameName: string } | null
 }
