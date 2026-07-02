@@ -9,9 +9,11 @@ import type {
   TaskSection,
   PartUrgency,
   PartStatus,
+  AlertType,
+  AlertStatus,
 } from '@prisma/client'
 
-export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus, TaskSection, PartUrgency, PartStatus }
+export type { UserRole, MachineStatus, ShiftType, ShiftStatus, ProgressiveType, TaskType, TaskStatus, TaskSection, PartUrgency, PartStatus, AlertType, AlertStatus }
 
 export interface SessionUser {
   id: string
@@ -316,4 +318,18 @@ export interface MachineHistory {
   statusChanges: StatusChangeEntry[]
   downtimeStats: DowntimeStats
   partRequests: MachinePartEntry[]
+}
+
+export interface ServiceAlertSummary {
+  id: string
+  locationId: string
+  type: AlertType
+  message: string | null
+  status: AlertStatus
+  createdAt: string
+  acknowledgedAt: string | null
+  resolvedAt: string | null
+  createdBy: { id: string; name: string | null }
+  acknowledgedBy: { id: string; name: string | null } | null
+  machine: { id: string; assetNumber: string; gameName: string } | null
 }

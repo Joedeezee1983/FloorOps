@@ -142,6 +142,42 @@ export const VALID_MACHINE_STATUSES = new Set(['ONLINE', 'OFFLINE', 'WARNING', '
 
 export const PROTECTED_ROUTES = {
   ADMIN_ONLY: ['/admin'],
-  SUPERVISOR_AND_ABOVE: ['/shifts', '/reports'],
+  SUPERVISOR_AND_ABOVE: ['/shifts', '/reports', '/alerts'],
   ALL_ROLES: ['/dashboard', '/machines', '/map'],
 }
+
+export const ALERT_TYPE_LABELS: Record<string, string> = {
+  NEED_ASSISTANCE: 'Need Assistance',
+  MACHINE_DOWN: 'Machine Down',
+  SECURITY: 'Security',
+  CUSTOM: 'Custom',
+}
+
+export const ALERT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Active',
+  ACKNOWLEDGED: 'Acknowledged',
+  RESOLVED: 'Resolved',
+}
+
+export const ALERT_TYPE_STYLES: Record<string, string> = {
+  NEED_ASSISTANCE: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
+  MACHINE_DOWN: 'bg-red-900/40 text-red-300 border border-red-700',
+  SECURITY: 'bg-purple-900/40 text-purple-300 border border-purple-700',
+  CUSTOM: 'bg-gray-700/60 text-gray-300 border border-gray-600',
+}
+
+export const ALERT_STATUS_STYLES: Record<string, string> = {
+  ACTIVE: 'bg-red-900/40 text-red-300 border border-red-700',
+  ACKNOWLEDGED: 'bg-yellow-900/40 text-yellow-300 border border-yellow-700',
+  RESOLVED: 'bg-green-900/40 text-green-300 border border-green-700',
+}
+
+// Active-selection styles for the alert type picker in the create-alert modal
+export const ALERT_TYPE_ACTIVE_STYLES: Record<string, string> = {
+  NEED_ASSISTANCE: 'bg-yellow-900/60 border-yellow-500 text-yellow-200',
+  MACHINE_DOWN: 'bg-red-900/60 border-red-500 text-red-200',
+  SECURITY: 'bg-purple-900/60 border-purple-500 text-purple-200',
+  CUSTOM: 'bg-blue-900/60 border-blue-500 text-blue-200',
+}
+
+export const ALERT_POLL_INTERVAL_MS = 30_000

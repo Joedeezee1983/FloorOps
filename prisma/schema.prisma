@@ -78,7 +78,9 @@ model User {
   shifts       Shift[]      @relation("ShiftSupervisor")
   shiftStaff   ShiftStaff[]
   tokens       UserToken[]
-  partRequests PartRequest[]
+  partRequests       PartRequest[]
+  alertsCreated      ServiceAlert[] @relation("AlertCreatedBy")
+  alertsAcknowledged ServiceAlert[] @relation("AlertAcknowledgedBy")
 
   @@index([email])
   @@index([locationId])
@@ -167,11 +169,12 @@ model Location {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users     User[]
-  machines  Machine[]
-  shifts    Shift[]
-  blueprint FloorBlueprint?
-  settings  SystemSettings?
+  users         User[]
+  machines      Machine[]
+  shifts        Shift[]
+  blueprint     FloorBlueprint?
+  settings      SystemSettings?
+  serviceAlerts ServiceAlert[]
 
   @@index([name])
 }
@@ -193,10 +196,11 @@ model Machine {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  location     Location?          @relation(fields: [locationId], references: [id])
-  statusLogs   MachineStatusLog[]
-  shiftTasks   ShiftTask[]
-  partRequests PartRequest[]
+  location      Location?          @relation(fields: [locationId], references: [id])
+  statusLogs    MachineStatusLog[]
+  shiftTasks    ShiftTask[]
+  partRequests  PartRequest[]
+  serviceAlerts ServiceAlert[]
 
   @@index([locationId])
   @@index([status])
@@ -340,6 +344,44 @@ model PartRequest {
   @@index([machineId])
   @@index([shiftId])
   @@index([requestedById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum AlertType {
+  NEED_ASSISTANCE
+  MACHINE_DOWN
+  SECURITY
+  CUSTOM
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model ServiceAlert {
+  id               String      @id @default(cuid())
+  locationId       String
+  createdById      String
+  machineId        String?
+  type             AlertType
+  message          String?
+  status           AlertStatus @default(ACTIVE)
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  location       Location @relation(fields: [locationId], references: [id])
+  createdBy      User     @relation("AlertCreatedBy", fields: [createdById], references: [id])
+  acknowledgedBy User?    @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  machine        Machine? @relation(fields: [machineId], references: [id])
+
+  @@index([locationId])
+  @@index([createdById])
   @@index([status])
   @@index([createdAt])
 }
