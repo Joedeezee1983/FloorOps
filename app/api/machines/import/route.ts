@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 import { bulkImportMachines } from '@/lib/machines'
-import { VALID_PROGRESSIVE_TYPES, GAME_BRANDS, GAME_TYPES } from '@/constants'
+import { VALID_PROGRESSIVE_TYPES } from '@/constants'
 import type { BulkImportRow } from '@/lib/machines'
 import type { ProgressiveType } from '@prisma/client'
-
-const VALID_BRANDS = new Set(GAME_BRANDS)
-const VALID_TYPES = new Set(GAME_TYPES)
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -15,6 +13,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    // Session JWT doesn't carry locationId — fetch it from the DB
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { locationId: true },
+    })
 
     const body = await req.json() as { rows?: unknown }
     if (!Array.isArray(body.rows) || body.rows.length === 0) {
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Maximum 1000 rows per import' }, { status: 400 })
     }
 
-    const { valid, errors } = validateRows(body.rows)
+    const { valid, errors } = validateRows(body.rows, user?.locationId ?? null)
 
     if (valid.length === 0) {
       return NextResponse.json({ error: 'No valid rows to import', errors }, { status: 400 })
@@ -52,7 +56,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 }
 
 function validateRows(
-  rows: unknown[]
+  rows: unknown[],
+  locationId: string | null
 ): { valid: BulkImportRow[]; errors: Array<{ row: number; assetNumber: string; success: false; error: string }> } {
   const valid: BulkImportRow[] = []
   const errors: Array<{ row: number; assetNumber: string; success: false; error: string }> = []
@@ -68,6 +73,10 @@ function validateRows(
       continue
     }
 
+    const gridX = row.gridX !== undefined && row.gridX !== '' ? parseInt(String(row.gridX), 10) : NaN
+    const gridY = row.gridY !== undefined && row.gridY !== '' ? parseInt(String(row.gridY), 10) : NaN
+    const hasValidGrid = !isNaN(gridX) && gridX > 0 && !isNaN(gridY) && gridY > 0
+
     valid.push({
       assetNumber,
       bankNumber: String(row.bankNumber).trim(),
@@ -77,7 +86,9 @@ function validateRows(
       progressiveType: String(row.progressiveType).trim() as ProgressiveType,
       denomination: parseFloat(String(row.denomination)),
       softwareVersion: row.softwareVersion ? String(row.softwareVersion).trim() : undefined,
-      locationId: row.locationId ? String(row.locationId).trim() : undefined,
+      locationId: locationId ?? undefined,
+      gridX: hasValidGrid ? gridX : undefined,
+      gridY: hasValidGrid ? gridY : undefined,
     })
   }
 
