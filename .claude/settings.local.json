@@ -21,7 +21,12 @@
       "Bash(npx next *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(git -C /c/Users/afdob/FloorOps add components/AdminDashboard.tsx lib/admin.ts app/api/admin/data/machines/route.ts)",
+      "Bash(git -C /c/Users/afdob/FloorOps status)",
+      "Bash(git -C /c/Users/afdob/FloorOps commit -m \"feat: bulk delete all machines in admin data tab\")",
+      "Bash(git -C /c/Users/afdob/FloorOps add app/api/machines/import/route.ts)",
+      "Bash(git -C /c/Users/afdob/FloorOps commit -m \"fix: import route set locationId and apply gridX/gridY coordinates\")"
     ]
   }
 }

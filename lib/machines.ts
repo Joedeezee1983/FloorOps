@@ -421,6 +421,8 @@ export interface BulkImportRow {
   denomination: number
   softwareVersion?: string
   locationId?: string
+  gridX?: number
+  gridY?: number
 }
 
 /**
@@ -446,6 +448,8 @@ export async function bulkImportMachines(rows: BulkImportRow[]): Promise<CsvImpo
           denomination: row.denomination,
           softwareVersion: row.softwareVersion || null,
           locationId: row.locationId || null,
+          gridX: row.gridX ?? null,
+          gridY: row.gridY ?? null,
           status: 'ONLINE',
           statusLogs: { create: { status: 'ONLINE', note: 'Bulk import' } },
         },
