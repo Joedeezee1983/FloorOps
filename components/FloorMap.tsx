@@ -5,6 +5,7 @@ import MachineTile from '@/components/MachineTile'
 import MachineDrawer from '@/components/MachineDrawer'
 import MachineForm from '@/components/MachineForm'
 import BlueprintUploadModal from '@/components/BlueprintUploadModal'
+import BankPlacementSidebar from '@/components/BankPlacementSidebar'
 import StatusBadge from '@/components/StatusBadge'
 import { useFloorMapPolling } from '@/hooks/useFloorMapPolling'
 import {
@@ -56,6 +57,11 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
   const [showBlueprint, setShowBlueprint] = useState(true)
   const [blueprintOpacity, setBlueprintOpacity] = useState(initialBlueprint?.opacity ?? 0.3)
   const [showBlueprintUpload, setShowBlueprintUpload] = useState(false)
+
+  const [bankPlacementMode, setBankPlacementMode] = useState(false)
+  const [selectedBank, setSelectedBank] = useState<string | null>(null)
+  const [isPlacingBank, setIsPlacingBank] = useState(false)
+  const [bankPlaceError, setBankPlaceError] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 })
@@ -136,6 +142,8 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
     // Don't capture mousedown on draggable machine tiles — let HTML5 drag proceed
     const target = e.target as HTMLElement
     if (target.closest('[draggable="true"]')) return
+    // Don't pan when clicking the bank placement overlay — let onClick handle it
+    if (target.closest('[data-bank-placement-overlay]')) return
 
     const el = scrollRef.current
     if (!el) return
@@ -204,6 +212,49 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
     setShowBlueprintUpload(false)
   }, [])
 
+  const handleEnterBankPlacement = useCallback(() => {
+    setBankPlacementMode(true)
+    setSelectedBank(null)
+    setBankPlaceError(null)
+  }, [])
+
+  const handleExitBankPlacement = useCallback(() => {
+    setBankPlacementMode(false)
+    setSelectedBank(null)
+    setBankPlaceError(null)
+  }, [])
+
+  const handleSelectBank = useCallback((bankNumber: string) => {
+    setSelectedBank(bankNumber)
+    setBankPlaceError(null)
+  }, [])
+
+  const handleOverlayClick = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectedBank) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = Math.floor((e.clientX - rect.left) / cellPx)
+    const y = Math.floor((e.clientY - rect.top) / cellPx)
+
+    setIsPlacingBank(true)
+    setBankPlaceError(null)
+
+    const res = await fetch('/api/machines/bank', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bankNumber: selectedBank, gridX: x, gridY: y }),
+    })
+
+    setIsPlacingBank(false)
+
+    if (res.ok) {
+      void refreshMachines()
+      setSelectedBank(null)
+    } else {
+      const data = await res.json() as { error?: string }
+      setBankPlaceError(data.error ?? 'Failed to place bank')
+    }
+  }, [selectedBank, cellPx, refreshMachines])
+
   return (
     <div className="flex flex-col h-full relative">
       <MapHeader
@@ -214,6 +265,7 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         showBlueprint={showBlueprint}
         blueprintOpacity={blueprintOpacity}
         showMobileGrid={showMobileGrid}
+        bankPlacementMode={bankPlacementMode}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onFitToScreen={fitToScreen}
@@ -222,6 +274,8 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         onOpacityChange={setBlueprintOpacity}
         onUploadBlueprint={() => setShowBlueprintUpload(true)}
         onToggleMobileGrid={() => setShowMobileGrid((v) => !v)}
+        onEnterBankPlacement={handleEnterBankPlacement}
+        onExitBankPlacement={handleExitBankPlacement}
       />
 
       {/* Mobile status summary — hidden on md+ screens */}
@@ -230,82 +284,118 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
       </div>
 
       {/* Full map — always visible on md+, toggled by showMobileGrid on mobile */}
-      <div className={`flex flex-col flex-1 overflow-hidden ${showMobileGrid ? '' : 'hidden md:flex'}`}>
-        {isAdmin && unplaced.length > 0 && (
-          <UnplacedBar
-            machines={unplaced}
-            isDragging={!!dragState}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onClick={(m) => setSelectedId(m.id)}
+      <div className={`flex flex-1 overflow-hidden ${showMobileGrid ? '' : 'hidden md:flex'}`}>
+        {/* Bank placement sidebar — visible to admin in placement mode only */}
+        {isAdmin && bankPlacementMode && (
+          <BankPlacementSidebar
+            machines={machines}
+            selectedBank={selectedBank}
+            isPlacing={isPlacingBank}
+            onSelectBank={handleSelectBank}
           />
         )}
 
-        <div
-          ref={scrollRef}
-          className={`overflow-auto flex-1 p-4 ${isGrabbing ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
-          onMouseDown={startPan}
-        >
-          <div className="relative" style={{ width: gridW, height: gridH }}>
-            {/* Blueprint overlay — sits behind the grid cells */}
-            {blueprint && showBlueprint && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={blueprint.imageUrl}
-                alt="Floor blueprint"
-                className="absolute inset-0 w-full h-full pointer-events-none select-none"
-                style={{ opacity: blueprintOpacity, objectFit: 'fill', zIndex: 0 }}
-              />
-            )}
+        {/* Main grid column */}
+        <div className="flex flex-col flex-1 overflow-hidden">
+          {isAdmin && unplaced.length > 0 && !bankPlacementMode && (
+            <UnplacedBar
+              machines={unplaced}
+              isDragging={!!dragState}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onClick={(m) => setSelectedId(m.id)}
+            />
+          )}
 
-            {/* Grid */}
-            <div
-              className="absolute inset-0 border border-gray-800 rounded-lg overflow-hidden"
-              style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)`, zIndex: 1 }}
-              onDragLeave={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                  setDragOverCell(null)
-                }
-              }}
-            >
-              {Array.from({ length: GRID_ROWS }, (_, y) =>
-                Array.from({ length: GRID_COLS }, (_, x) => {
-                  const machine = machineGrid.get(cellKey(x, y)) ?? null
-                  const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
-                  const isOccupied = machine !== null && machine.id !== dragState?.machine.id
+          {bankPlacementMode && selectedBank && (
+            <div className="mx-4 mt-2 px-3 py-1.5 bg-amber-900/20 border border-amber-700/40 rounded-lg text-xs text-amber-300 text-center shrink-0">
+              Click on the map to place bank{' '}
+              <span className="font-mono font-semibold">{selectedBank}</span>
+            </div>
+          )}
 
-                  return (
-                    <GridCell
-                      key={cellKey(x, y)}
-                      x={x}
-                      y={y}
-                      machine={machine}
-                      isAdmin={isAdmin}
-                      isDragging={!!dragState}
-                      isHovered={isHovered}
-                      isOccupied={isOccupied}
-                      cellPx={cellPx}
-                      onDragOver={() => setDragOverCell({ x, y })}
-                      onDrop={() => handleDrop(x, y)}
-                      onDragStart={handleDragStart}
-                      onDragEnd={handleDragEnd}
-                      onClick={(m) => setSelectedId(m.id)}
-                    />
-                  )
-                })
+          {bankPlaceError && (
+            <div className="mx-4 mt-1 px-3 py-1.5 bg-red-900/20 border border-red-700/40 rounded-lg text-xs text-red-300 text-center shrink-0">
+              {bankPlaceError}
+            </div>
+          )}
+
+          <div
+            ref={scrollRef}
+            className={`overflow-auto flex-1 p-4 ${isGrabbing ? 'cursor-grabbing select-none' : 'cursor-grab'}`}
+            onMouseDown={startPan}
+          >
+            <div className="relative" style={{ width: gridW, height: gridH }}>
+              {/* Blueprint overlay — sits behind the grid cells */}
+              {blueprint && showBlueprint && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={blueprint.imageUrl}
+                  alt="Floor blueprint"
+                  className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                  style={{ opacity: blueprintOpacity, objectFit: 'fill', zIndex: 0 }}
+                />
+              )}
+
+              {/* Grid */}
+              <div
+                className="absolute inset-0 border border-gray-800 rounded-lg overflow-hidden"
+                style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, ${cellPx}px)`, zIndex: 1 }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragOverCell(null)
+                  }
+                }}
+              >
+                {Array.from({ length: GRID_ROWS }, (_, y) =>
+                  Array.from({ length: GRID_COLS }, (_, x) => {
+                    const machine = machineGrid.get(cellKey(x, y)) ?? null
+                    const isHovered = dragOverCell?.x === x && dragOverCell?.y === y
+                    const isOccupied = machine !== null && machine.id !== dragState?.machine.id
+
+                    return (
+                      <GridCell
+                        key={cellKey(x, y)}
+                        x={x}
+                        y={y}
+                        machine={machine}
+                        isAdmin={isAdmin}
+                        isDragging={!!dragState}
+                        isHovered={isHovered}
+                        isOccupied={isOccupied}
+                        cellPx={cellPx}
+                        onDragOver={() => setDragOverCell({ x, y })}
+                        onDrop={() => handleDrop(x, y)}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                        onClick={(m) => setSelectedId(m.id)}
+                      />
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Bank placement overlay — captures clicks and converts to grid coords */}
+              {bankPlacementMode && selectedBank && !isPlacingBank && (
+                <div
+                  data-bank-placement-overlay="true"
+                  className="absolute inset-0 cursor-crosshair"
+                  style={{ zIndex: 10 }}
+                  onClick={handleOverlayClick}
+                />
               )}
             </div>
           </div>
+
+          <MapLegend />
+
+          <MinimapPanel
+            machines={machines}
+            cellPx={cellPx}
+            scrollPos={scrollPos}
+            viewportSize={viewportSize}
+          />
         </div>
-
-        <MapLegend />
-
-        <MinimapPanel
-          machines={machines}
-          cellPx={cellPx}
-          scrollPos={scrollPos}
-          viewportSize={viewportSize}
-        />
       </div>
 
       <MachineDrawer
@@ -343,6 +433,7 @@ interface MapHeaderProps {
   showBlueprint: boolean
   blueprintOpacity: number
   showMobileGrid: boolean
+  bankPlacementMode: boolean
   onZoomIn: () => void
   onZoomOut: () => void
   onFitToScreen: () => void
@@ -351,11 +442,15 @@ interface MapHeaderProps {
   onOpacityChange: (v: number) => void
   onUploadBlueprint: () => void
   onToggleMobileGrid: () => void
+  onEnterBankPlacement: () => void
+  onExitBankPlacement: () => void
 }
 
 function MapHeader({
   isAdmin, lastUpdated, zoomLevel, blueprint, showBlueprint, blueprintOpacity, showMobileGrid,
+  bankPlacementMode,
   onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint, onToggleMobileGrid,
+  onEnterBankPlacement, onExitBankPlacement,
 }: MapHeaderProps) {
   const BTN = 'px-3 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors'
 
@@ -401,7 +496,7 @@ function MapHeader({
           </div>
         )}
 
-        {isAdmin && (
+        {isAdmin && !bankPlacementMode && (
           <button onClick={onUploadBlueprint} className={`${BTN} hidden sm:block`}>
             {blueprint ? 'Replace Blueprint' : 'Upload Blueprint'}
           </button>
@@ -416,13 +511,27 @@ function MapHeader({
           />
         </div>
 
-        {isAdmin && (
+        {isAdmin && !bankPlacementMode && (
+          <>
+            <button onClick={onEnterBankPlacement} className={`${BTN} hidden sm:block`}>
+              Place Banks
+            </button>
+            <button
+              onClick={onAddMachine}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+            >
+              <span className="text-lg leading-none">+</span>
+              <span className="hidden sm:inline">Add Machine</span>
+            </button>
+          </>
+        )}
+
+        {bankPlacementMode && (
           <button
-            onClick={onAddMachine}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors"
+            onClick={onExitBankPlacement}
+            className="px-3 sm:px-4 py-2 text-sm font-semibold bg-amber-700 text-white rounded-lg hover:bg-amber-600 border border-amber-600 transition-colors"
           >
-            <span className="text-lg leading-none">+</span>
-            <span className="hidden sm:inline">Add Machine</span>
+            Exit Placement Mode
           </button>
         )}
       </div>

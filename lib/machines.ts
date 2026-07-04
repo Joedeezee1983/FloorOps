@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { MACHINES_PER_PAGE } from '@/constants'
+import { MACHINES_PER_PAGE, GRID_COLS } from '@/constants'
 import type { MachineStatus, ProgressiveType, TaskStatus, Prisma } from '@prisma/client'
 import type {
   MapMachine,
@@ -407,6 +407,52 @@ export async function updateMachineStatus(
  */
 export async function deleteMachine(id: string): Promise<void> {
   await prisma.machine.delete({ where: { id } })
+}
+
+export class BankPlacementError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BankPlacementError'
+  }
+}
+
+export interface PlaceBankInput {
+  bankNumber: string
+  gridX: number
+  gridY: number
+}
+
+/**
+ * Places all machines in a bank at consecutive horizontal positions starting at (gridX, gridY).
+ * Machines are ordered by assetNumber for deterministic placement.
+ * Throws BankPlacementError if the bank would extend past the right edge of the grid.
+ * Returns the count of machines updated.
+ */
+export async function placeBankMachines(input: PlaceBankInput): Promise<number> {
+  const machines = await prisma.machine.findMany({
+    where: { bankNumber: input.bankNumber },
+    select: { id: true },
+    orderBy: { assetNumber: 'asc' },
+  })
+
+  if (machines.length === 0) return 0
+
+  if (input.gridX + machines.length - 1 >= GRID_COLS) {
+    throw new BankPlacementError(
+      `Bank ${input.bankNumber} has ${machines.length} machines and would extend past column ${GRID_COLS - 1} — choose an X position of ${GRID_COLS - machines.length} or less`
+    )
+  }
+
+  await prisma.$transaction(
+    machines.map((machine, i) =>
+      prisma.machine.update({
+        where: { id: machine.id },
+        data: { gridX: input.gridX + i, gridY: input.gridY },
+      })
+    )
+  )
+
+  return machines.length
 }
 
 // ─── Bulk import ──────────────────────────────────────────────────────────────
