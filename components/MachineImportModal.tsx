@@ -61,6 +61,8 @@ export default function MachineImportModal({ onClose, onImported }: MachineImpor
             progressiveType: r.progressiveType,
             denomination: parseFloat(r.denomination),
             softwareVersion: r.softwareVersion || undefined,
+            gridX: r.gridX || undefined,
+            gridY: r.gridY || undefined,
           })),
         }),
       })
@@ -385,6 +387,8 @@ function parseCsv(text: string): {
     const progressiveType = get('progressiveType').toUpperCase()
     const denomination = get('denomination')
     const softwareVersion = get('softwareVersion')
+    const gridX = get('gridX')
+    const gridY = get('gridY')
 
     if (!assetNumber) { errors.push({ row: rowNum, error: 'assetNumber is required' }); continue }
     if (!bankNumber) { errors.push({ row: rowNum, error: 'bankNumber is required' }); continue }
@@ -401,7 +405,7 @@ function parseCsv(text: string): {
       continue
     }
 
-    rows.push({ assetNumber, bankNumber, gameName, gameBrand, gameType, progressiveType, denomination, softwareVersion })
+    rows.push({ assetNumber, bankNumber, gameName, gameBrand, gameType, progressiveType, denomination, softwareVersion, gridX: gridX || undefined, gridY: gridY || undefined })
   }
 
   return { rows, errors, error: null }

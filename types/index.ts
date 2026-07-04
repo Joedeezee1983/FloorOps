@@ -117,6 +117,8 @@ export interface CsvImportRow {
   progressiveType: string
   denomination: string
   softwareVersion: string
+  gridX?: string
+  gridY?: string
 }
 
 export interface CsvRowResult {
