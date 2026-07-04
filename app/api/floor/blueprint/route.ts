@@ -63,13 +63,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       : file.type === 'image/png' ? 'png'
       : 'jpg'
 
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'blueprints')
+    const uploadsDir = join(process.cwd(), 'public', 'blueprints')
     await mkdir(uploadsDir, { recursive: true })
 
     const filename = `${locationId}.${ext}`
     await writeFile(join(uploadsDir, filename), Buffer.from(bytes))
 
-    const imageUrl = `/uploads/blueprints/${filename}`
+    const imageUrl = `/blueprints/${filename}`
     const opacity = opacityStr ? Math.min(1, Math.max(0, parseFloat(opacityStr))) : 0.3
 
     const blueprint = await upsertBlueprint(locationId, imageUrl, opacity)
