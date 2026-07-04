@@ -27,7 +27,9 @@
       "Bash(git -C /c/Users/afdob/FloorOps commit -m \"feat: bulk delete all machines in admin data tab\")",
       "Bash(git -C /c/Users/afdob/FloorOps add app/api/machines/import/route.ts)",
       "Bash(git -C /c/Users/afdob/FloorOps commit -m \"fix: import route set locationId and apply gridX/gridY coordinates\")",
-      "Bash(git -C /c/Users/afdob/FloorOps add components/MachineImportModal.tsx types/index.ts)"
+      "Bash(git -C /c/Users/afdob/FloorOps add components/MachineImportModal.tsx types/index.ts)",
+      "Bash(git -C /c/Users/afdob/FloorOps add app/api/floor/blueprint/route.ts)",
+      "Bash(git -C /c/Users/afdob/FloorOps commit -m \"fix: blueprint upload save to correct public directory on EC2\")"
     ]
   }
 }
