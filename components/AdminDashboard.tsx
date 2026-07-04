@@ -860,6 +860,9 @@ function DataTab() {
   const [isExporting, setIsExporting] = useState(false)
   const [isCleaning, setIsCleaning] = useState(false)
   const [cleanupResult, setCleanupResult] = useState<string | null>(null)
+  const [showDeleteMachinesConfirm, setShowDeleteMachinesConfirm] = useState(false)
+  const [isDeletingMachines, setIsDeletingMachines] = useState(false)
+  const [deleteMachinesResult, setDeleteMachinesResult] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/data/stats')
@@ -882,6 +885,25 @@ function DataTab() {
       URL.revokeObjectURL(url)
     } finally {
       setIsExporting(false)
+    }
+  }
+
+  const handleDeleteAllMachines = async (): Promise<void> => {
+    setShowDeleteMachinesConfirm(false)
+    setIsDeletingMachines(true)
+    setDeleteMachinesResult(null)
+    try {
+      const res = await fetch('/api/admin/data/machines', { method: 'DELETE' })
+      const json = await res.json() as { data?: { deleted: number }; error?: string }
+      if (!res.ok) {
+        setDeleteMachinesResult(`Error: ${json.error ?? 'Unknown error'}`)
+      } else {
+        setDeleteMachinesResult(`Deleted ${json.data?.deleted ?? 0} machine${json.data?.deleted !== 1 ? 's' : ''}.`)
+      }
+    } catch {
+      setDeleteMachinesResult('Request failed. Please try again.')
+    } finally {
+      setIsDeletingMachines(false)
     }
   }
 
@@ -967,6 +989,24 @@ function DataTab() {
         )}
       </div>
 
+      {/* Delete All Machines */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6">
+        <h3 className="text-sm font-semibold text-white mb-1">Delete All Machines</h3>
+        <p className="text-xs text-gray-400 mb-4">
+          Permanently removes every machine assigned to your location from the registry. This cannot be undone.
+        </p>
+        <button
+          onClick={() => setShowDeleteMachinesConfirm(true)}
+          disabled={isDeletingMachines}
+          className="px-4 py-2 text-sm font-semibold bg-red-700 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
+        >
+          {isDeletingMachines ? 'Deleting…' : 'Delete All Machines'}
+        </button>
+        {deleteMachinesResult && (
+          <p className="mt-3 text-xs text-gray-400">{deleteMachinesResult}</p>
+        )}
+      </div>
+
       {showConfirm && (
         <ConfirmDialog
           title="Clear Shift History"
@@ -974,6 +1014,16 @@ function DataTab() {
           confirmLabel="Delete"
           onConfirm={handleCleanup}
           onClose={() => setShowConfirm(false)}
+        />
+      )}
+
+      {showDeleteMachinesConfirm && (
+        <ConfirmDialog
+          title="Delete All Machines"
+          message="This will permanently delete every machine assigned to your location. Machine references in shift tasks, part requests, and service alerts will be cleared. This cannot be undone."
+          confirmLabel="Delete All Machines"
+          onConfirm={handleDeleteAllMachines}
+          onClose={() => setShowDeleteMachinesConfirm(false)}
         />
       )}
     </div>

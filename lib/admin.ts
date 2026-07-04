@@ -234,6 +234,32 @@ export async function deleteShiftsOlderThan(days: number): Promise<number> {
 }
 
 /**
+ * Deletes all machines assigned to the given location.
+ * Nulls out nullable machineId FK references before deletion to satisfy
+ * FK constraints on ShiftTask, PartRequest, and ServiceAlert.
+ * Returns the count of deleted machines.
+ */
+export async function deleteAllMachinesForLocation(locationId: string): Promise<number> {
+  const machines = await prisma.machine.findMany({
+    where: { locationId },
+    select: { id: true },
+  })
+
+  if (machines.length === 0) return 0
+
+  const ids = machines.map((m) => m.id)
+
+  await prisma.$transaction([
+    prisma.shiftTask.updateMany({ where: { machineId: { in: ids } }, data: { machineId: null } }),
+    prisma.partRequest.updateMany({ where: { machineId: { in: ids } }, data: { machineId: null } }),
+    prisma.serviceAlert.updateMany({ where: { machineId: { in: ids } }, data: { machineId: null } }),
+    prisma.machine.deleteMany({ where: { locationId } }),
+  ])
+
+  return machines.length
+}
+
+/**
  * Returns aggregate counts for the Data tab stats display.
  */
 export async function getDataStats(): Promise<DataStats> {
