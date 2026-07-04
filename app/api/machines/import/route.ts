@@ -28,7 +28,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Maximum 1000 rows per import' }, { status: 400 })
     }
 
+    console.log('First row raw:', body.rows[0])
+
     const { valid, errors } = validateRows(body.rows, user?.locationId ?? null)
+
+    console.log('First validated row:', valid[0])
 
     if (valid.length === 0) {
       return NextResponse.json({ error: 'No valid rows to import', errors }, { status: 400 })
