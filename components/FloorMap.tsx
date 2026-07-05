@@ -212,6 +212,23 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
     setShowBlueprintUpload(false)
   }, [])
 
+  const [showRemoveBlueprintConfirm, setShowRemoveBlueprintConfirm] = useState(false)
+  const [isRemovingBlueprint, setIsRemovingBlueprint] = useState(false)
+
+  const handleRemoveBlueprint = useCallback(async (): Promise<void> => {
+    setShowRemoveBlueprintConfirm(false)
+    setIsRemovingBlueprint(true)
+    try {
+      const res = await fetch('/api/floor/blueprint', { method: 'DELETE' })
+      if (res.ok) {
+        setBlueprint(null)
+        setShowBlueprint(true)
+      }
+    } finally {
+      setIsRemovingBlueprint(false)
+    }
+  }, [])
+
   const handleEnterBankPlacement = useCallback(() => {
     setBankPlacementMode(true)
     setSelectedBank(null)
@@ -273,6 +290,8 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
         onToggleBlueprint={() => setShowBlueprint((v) => !v)}
         onOpacityChange={setBlueprintOpacity}
         onUploadBlueprint={() => setShowBlueprintUpload(true)}
+        onRemoveBlueprint={() => setShowRemoveBlueprintConfirm(true)}
+        isRemovingBlueprint={isRemovingBlueprint}
         onToggleMobileGrid={() => setShowMobileGrid((v) => !v)}
         onEnterBankPlacement={handleEnterBankPlacement}
         onExitBankPlacement={handleExitBankPlacement}
@@ -419,6 +438,13 @@ export default function FloorMap({ initialMachines, userRole, initialBlueprint }
           onClose={() => setShowBlueprintUpload(false)}
         />
       )}
+
+      {showRemoveBlueprintConfirm && (
+        <RemoveBlueprintConfirmDialog
+          onConfirm={handleRemoveBlueprint}
+          onClose={() => setShowRemoveBlueprintConfirm(false)}
+        />
+      )}
     </div>
   )
 }
@@ -441,6 +467,8 @@ interface MapHeaderProps {
   onToggleBlueprint: () => void
   onOpacityChange: (v: number) => void
   onUploadBlueprint: () => void
+  onRemoveBlueprint: () => void
+  isRemovingBlueprint: boolean
   onToggleMobileGrid: () => void
   onEnterBankPlacement: () => void
   onExitBankPlacement: () => void
@@ -448,8 +476,8 @@ interface MapHeaderProps {
 
 function MapHeader({
   isAdmin, lastUpdated, zoomLevel, blueprint, showBlueprint, blueprintOpacity, showMobileGrid,
-  bankPlacementMode,
-  onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint, onToggleMobileGrid,
+  bankPlacementMode, isRemovingBlueprint,
+  onZoomIn, onZoomOut, onFitToScreen, onAddMachine, onToggleBlueprint, onOpacityChange, onUploadBlueprint, onRemoveBlueprint, onToggleMobileGrid,
   onEnterBankPlacement, onExitBankPlacement,
 }: MapHeaderProps) {
   const BTN = 'px-3 py-2 text-sm text-gray-300 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-700 transition-colors'
@@ -497,9 +525,20 @@ function MapHeader({
         )}
 
         {isAdmin && !bankPlacementMode && (
-          <button onClick={onUploadBlueprint} className={`${BTN} hidden sm:block`}>
-            {blueprint ? 'Replace Blueprint' : 'Upload Blueprint'}
-          </button>
+          <div className="hidden sm:flex items-center gap-2">
+            <button onClick={onUploadBlueprint} className={BTN}>
+              {blueprint ? 'Replace Blueprint' : 'Upload Blueprint'}
+            </button>
+            {blueprint && (
+              <button
+                onClick={onRemoveBlueprint}
+                disabled={isRemovingBlueprint}
+                className="px-3 py-2 text-sm text-red-400 bg-gray-800 border border-gray-700 rounded-lg hover:bg-red-900/30 hover:border-red-700 hover:text-red-300 disabled:opacity-50 transition-colors"
+              >
+                {isRemovingBlueprint ? 'Removing…' : 'Remove Blueprint'}
+              </button>
+            )}
+          </div>
         )}
 
         <div className="hidden md:block">
@@ -797,6 +836,30 @@ function MinimapPanel({ machines, cellPx, scrollPos, viewportSize }: MinimapPane
             }}
           />
         )}
+      </div>
+    </div>
+  )
+}
+
+function RemoveBlueprintConfirmDialog({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm rounded-xl bg-gray-900 border border-gray-700 shadow-2xl p-6">
+        <h2 className="text-base font-bold text-white mb-2">Remove Blueprint</h2>
+        <p className="text-sm text-gray-400 mb-6">
+          This will delete the floor blueprint and remove the image file. The map will return to plain grid view. This cannot be undone.
+        </p>
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-sm font-semibold bg-red-700 text-white rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Remove Blueprint
+          </button>
+        </div>
       </div>
     </div>
   )

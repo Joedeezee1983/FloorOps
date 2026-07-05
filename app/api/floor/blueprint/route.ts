@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile, mkdir, unlink } from 'fs/promises'
 import { join } from 'path'
 import { authOptions } from '@/lib/auth'
-import { getFirstBlueprint, upsertBlueprint, updateBlueprintOpacity } from '@/lib/blueprints'
+import { getFirstBlueprint, upsertBlueprint, updateBlueprintOpacity, deleteBlueprint } from '@/lib/blueprints'
+import { prisma } from '@/lib/db'
 
 const ALLOWED_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'])
 const MAX_FILE_BYTES = 20 * 1024 * 1024 // 20 MB
@@ -76,6 +77,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ data: blueprint }, { status: 200 })
   } catch (error) {
     console.error('[floor/blueprint] Failed to upload blueprint:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(): Promise<NextResponse> {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { locationId: true },
+    })
+
+    if (!user?.locationId) {
+      return NextResponse.json({ error: 'No location assigned to your account' }, { status: 400 })
+    }
+
+    const imageUrl = await deleteBlueprint(user.locationId)
+    if (!imageUrl) {
+      return NextResponse.json({ error: 'No blueprint found for this location' }, { status: 404 })
+    }
+
+    // Remove the physical file — non-fatal if it's already gone
+    try {
+      await unlink(join(process.cwd(), 'public', imageUrl))
+    } catch {
+      console.warn('[floor/blueprint] Image file not found during delete:', imageUrl)
+    }
+
+    return NextResponse.json({ data: { deleted: true } })
+  } catch (error) {
+    console.error('[floor/blueprint] Failed to delete blueprint:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -47,6 +47,23 @@ export async function upsertBlueprint(
 }
 
 /**
+ * Deletes the blueprint record for a location and returns the imageUrl
+ * so the caller can remove the file from the filesystem.
+ * Returns null if no blueprint exists for the location.
+ */
+export async function deleteBlueprint(locationId: string): Promise<string | null> {
+  try {
+    const deleted = await prisma.floorBlueprint.delete({
+      where: { locationId },
+      select: { imageUrl: true },
+    })
+    return deleted.imageUrl
+  } catch {
+    return null
+  }
+}
+
+/**
  * Updates only the opacity for an existing blueprint without changing the image.
  */
 export async function updateBlueprintOpacity(
