@@ -863,6 +863,9 @@ function DataTab() {
   const [showDeleteMachinesConfirm, setShowDeleteMachinesConfirm] = useState(false)
   const [isDeletingMachines, setIsDeletingMachines] = useState(false)
   const [deleteMachinesResult, setDeleteMachinesResult] = useState<string | null>(null)
+  const [showClearMapConfirm, setShowClearMapConfirm] = useState(false)
+  const [isClearingMap, setIsClearingMap] = useState(false)
+  const [clearMapResult, setClearMapResult] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/data/stats')
@@ -904,6 +907,25 @@ function DataTab() {
       setDeleteMachinesResult('Request failed. Please try again.')
     } finally {
       setIsDeletingMachines(false)
+    }
+  }
+
+  const handleClearFloorMap = async (): Promise<void> => {
+    setShowClearMapConfirm(false)
+    setIsClearingMap(true)
+    setClearMapResult(null)
+    try {
+      const res = await fetch('/api/admin/data/map', { method: 'DELETE' })
+      const json = await res.json() as { data?: { cleared: number }; error?: string }
+      if (!res.ok) {
+        setClearMapResult(`Error: ${json.error ?? 'Unknown error'}`)
+      } else {
+        setClearMapResult(`Removed ${json.data?.cleared ?? 0} machine${json.data?.cleared !== 1 ? 's' : ''} from the floor map.`)
+      }
+    } catch {
+      setClearMapResult('Request failed. Please try again.')
+    } finally {
+      setIsClearingMap(false)
     }
   }
 
@@ -955,6 +977,24 @@ function DataTab() {
         >
           {isExporting ? 'Exporting…' : 'Download CSV'}
         </button>
+      </div>
+
+      {/* Clear Floor Map */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-6">
+        <h3 className="text-sm font-semibold text-white mb-1">Clear Floor Map</h3>
+        <p className="text-xs text-gray-400 mb-4">
+          Removes all machines from the floor map by clearing their grid positions. Machines remain in the registry and can be repositioned at any time.
+        </p>
+        <button
+          onClick={() => setShowClearMapConfirm(true)}
+          disabled={isClearingMap}
+          className="px-4 py-2 text-sm font-semibold bg-yellow-700 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 transition-colors"
+        >
+          {isClearingMap ? 'Clearing…' : 'Clear Floor Map'}
+        </button>
+        {clearMapResult && (
+          <p className="mt-3 text-xs text-gray-400">{clearMapResult}</p>
+        )}
       </div>
 
       {/* Cleanup */}
@@ -1024,6 +1064,16 @@ function DataTab() {
           confirmLabel="Delete All Machines"
           onConfirm={handleDeleteAllMachines}
           onClose={() => setShowDeleteMachinesConfirm(false)}
+        />
+      )}
+
+      {showClearMapConfirm && (
+        <ConfirmDialog
+          title="Clear Floor Map"
+          message="This will remove all machines from the floor map by clearing their grid positions. Machines will remain in the registry and can be repositioned at any time."
+          confirmLabel="Clear Floor Map"
+          onConfirm={handleClearFloorMap}
+          onClose={() => setShowClearMapConfirm(false)}
         />
       )}
     </div>

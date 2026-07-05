@@ -260,6 +260,19 @@ export async function deleteAllMachinesForLocation(locationId: string): Promise<
 }
 
 /**
+ * Sets gridX and gridY to null on all machines in the given location,
+ * removing them from the floor map without deleting them from the registry.
+ * Returns the count of machines cleared.
+ */
+export async function clearFloorMapForLocation(locationId: string): Promise<number> {
+  const result = await prisma.machine.updateMany({
+    where: { locationId, OR: [{ gridX: { not: null } }, { gridY: { not: null } }] },
+    data: { gridX: null, gridY: null },
+  })
+  return result.count
+}
+
+/**
  * Returns aggregate counts for the Data tab stats display.
  */
 export async function getDataStats(): Promise<DataStats> {
