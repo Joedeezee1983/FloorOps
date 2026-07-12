@@ -222,7 +222,7 @@ export default function MachinesTable({ userRole }: MachinesTableProps) {
           label="All Denoms"
         >
           {DENOMINATIONS.map((d) => (
-            <option key={d} value={String(d)}>${d.toFixed(2)}</option>
+            <option key={d} value={d}>{d}</option>
           ))}
         </FilterSelect>
 
