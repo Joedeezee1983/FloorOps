@@ -240,7 +240,7 @@ function DrawerMeta({ detail }: { detail: MachineDetail }) {
     { label: 'Brand', value: detail.gameBrand },
     { label: 'Game Type', value: detail.gameType },
     { label: 'Progressive', value: PROGRESSIVE_TYPE_LABELS[detail.progressiveType] ?? detail.progressiveType },
-    { label: 'Denomination', value: `$${detail.denomination.toFixed(2)}` },
+    { label: 'Denomination', value: detail.denomination },
     { label: 'Software', value: detail.softwareVersion },
     { label: 'Location', value: detail.locationName },
     {

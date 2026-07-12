@@ -384,9 +384,8 @@ function parseSyncCsv(text: string): {
       continue
     }
 
-    const denomNum = denomination ? parseFloat(denomination) : NaN
-    if (isNaN(denomNum) || denomNum <= 0) {
-      errors.push({ row: rowNum, error: 'denomination must be a positive number' })
+    if (!denomination) {
+      errors.push({ row: rowNum, error: 'denomination is required' })
       continue
     }
 

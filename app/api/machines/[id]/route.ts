@@ -161,8 +161,8 @@ async function handleFieldsUpdate(
     }
     input.progressiveType = body.progressiveType as ProgressiveType
   }
-  if (typeof body.denomination === 'number' && body.denomination > 0) {
-    input.denomination = body.denomination
+  if (typeof body.denomination === 'string' && body.denomination.trim()) {
+    input.denomination = body.denomination.trim()
   }
   if ('softwareVersion' in body) {
     input.softwareVersion =

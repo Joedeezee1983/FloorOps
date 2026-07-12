@@ -37,9 +37,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         continue
       }
 
-      const denom = parseFloat(row.denomination as string)
-      if (isNaN(denom) || denom <= 0) {
-        validationErrors.push(`Row ${rowNum}: denomination must be a positive number`)
+      const denomination = typeof row.denomination === 'string' ? row.denomination.trim() : String(row.denomination ?? '').trim()
+      if (!denomination) {
+        validationErrors.push(`Row ${rowNum}: denomination is required`)
         continue
       }
 
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         gameBrand: (row.gameBrand as string).trim(),
         gameType: (row.gameType as string).trim(),
         progressiveType,
-        denomination: denom,
+        denomination,
         softwareVersion: typeof row.softwareVersion === 'string' ? row.softwareVersion.trim() || undefined : undefined,
         status: typeof row.status === 'string' ? row.status.trim() || undefined : undefined,
       })

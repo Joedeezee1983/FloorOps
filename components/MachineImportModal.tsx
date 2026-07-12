@@ -59,7 +59,7 @@ export default function MachineImportModal({ onClose, onImported }: MachineImpor
             gameBrand: r.gameBrand,
             gameType: r.gameType,
             progressiveType: r.progressiveType,
-            denomination: parseFloat(r.denomination),
+            denomination: r.denomination,
             softwareVersion: r.softwareVersion || undefined,
             gridX: r.gridX || undefined,
             gridY: r.gridY || undefined,
@@ -213,7 +213,7 @@ function UploadStep({
           Valid progressiveType values: NONE, STANDALONE, LINKED, WIDE_AREA
         </p>
         <p className="text-xs text-gray-500">
-          denomination must be a positive number (e.g. 0.01, 0.25, 1.00)
+          denomination is required (e.g. 0.01, 0.25, 1.00)
         </p>
       </div>
     </div>
@@ -400,8 +400,8 @@ function parseCsv(text: string): {
       errors.push({ row: rowNum, error: `Invalid progressiveType: "${progressiveType}"` })
       continue
     }
-    if (!denomination || isNaN(parseFloat(denomination)) || parseFloat(denomination) <= 0) {
-      errors.push({ row: rowNum, error: 'denomination must be a positive number' })
+    if (!denomination) {
+      errors.push({ row: rowNum, error: 'denomination is required' })
       continue
     }
 

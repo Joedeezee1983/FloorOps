@@ -45,7 +45,7 @@ function toFormState(m?: MachineListItem): FormState {
     gameBrand: m.gameBrand,
     gameType: m.gameType,
     progressiveType: m.progressiveType,
-    denomination: String(m.denomination),
+    denomination: m.denomination,
     softwareVersion: m.softwareVersion ?? '',
     locationId: m.locationId ?? '',
     status: m.status,
@@ -92,7 +92,7 @@ export default function MachineForm({ onClose, onCreated, initialMachine }: Mach
       gameBrand: form.gameBrand,
       gameType: form.gameType,
       progressiveType: form.progressiveType,
-      denomination: parseFloat(form.denomination),
+      denomination: form.denomination,
       softwareVersion: form.softwareVersion.trim() || undefined,
       locationId: form.locationId || undefined,
       status: form.status,
@@ -195,7 +195,7 @@ export default function MachineForm({ onClose, onCreated, initialMachine }: Mach
             <Field label="Denomination *">
               <select required value={form.denomination} onChange={handleChange('denomination')} className={INPUT_CLS}>
                 {DENOMINATIONS.map((d) => (
-                  <option key={d} value={String(d)}>${d.toFixed(2)}</option>
+                  <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </Field>

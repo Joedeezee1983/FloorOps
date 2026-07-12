@@ -211,7 +211,7 @@ export async function buildMachineCsv(): Promise<string> {
       m.gameBrand,
       m.gameType,
       m.progressiveType,
-      m.denomination.toString(),
+      m.denomination,
       m.softwareVersion ?? '',
       m.status,
     ].join(',')

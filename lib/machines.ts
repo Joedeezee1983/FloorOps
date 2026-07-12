@@ -117,7 +117,7 @@ export interface ListMachinesInput {
   status?: MachineStatus
   gameBrand?: string
   progressiveType?: ProgressiveType
-  denomination?: number
+  denomination?: string
   page?: number
   pageSize?: number
 }
@@ -270,7 +270,7 @@ export interface CreateMachineInput {
   gameBrand: string
   gameType: string
   progressiveType: ProgressiveType
-  denomination: number
+  denomination: string
   softwareVersion?: string
   locationId?: string
   status?: MachineStatus
@@ -311,7 +311,7 @@ export interface UpdateMachineFieldsInput {
   gameBrand?: string
   gameType?: string
   progressiveType?: ProgressiveType
-  denomination?: number
+  denomination?: string
   softwareVersion?: string | null
   locationId?: string | null
   status?: MachineStatus
@@ -464,7 +464,7 @@ export interface BulkImportRow {
   gameBrand: string
   gameType: string
   progressiveType: ProgressiveType
-  denomination: number
+  denomination: string
   softwareVersion?: string
   locationId?: string
   gridX?: number

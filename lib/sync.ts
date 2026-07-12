@@ -10,7 +10,7 @@ export interface SyncRow {
   gameBrand: string
   gameType: string
   progressiveType: string
-  denomination: number
+  denomination: string
   softwareVersion?: string
   status?: string
 }

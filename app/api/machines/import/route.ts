@@ -88,7 +88,7 @@ function validateRows(
       gameBrand: String(row.gameBrand).trim(),
       gameType: String(row.gameType).trim(),
       progressiveType: String(row.progressiveType).trim() as ProgressiveType,
-      denomination: parseFloat(String(row.denomination)),
+      denomination: String(row.denomination).trim(),
       softwareVersion: row.softwareVersion ? String(row.softwareVersion).trim() : undefined,
       locationId: locationId ?? undefined,
       gridX: hasValidGrid ? gridX : undefined,
@@ -110,8 +110,7 @@ function getRowError(row: Record<string, unknown>): string | null {
     return 'progressiveType must be NONE, STANDALONE, LINKED, or WIDE_AREA'
   }
 
-  const denom = parseFloat(String(row.denomination))
-  if (isNaN(denom) || denom <= 0) return 'denomination must be a positive number'
+  if (!row.denomination || String(row.denomination).trim() === '') return 'denomination is required'
 
   return null
 }

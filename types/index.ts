@@ -72,7 +72,7 @@ export interface MachineDetail {
   gameBrand: string
   gameType: string
   progressiveType: ProgressiveType
-  denomination: number
+  denomination: string
   softwareVersion: string | null
   status: MachineStatus
   locationId: string | null
@@ -93,7 +93,7 @@ export interface MachineListItem {
   gameBrand: string
   gameType: string
   progressiveType: ProgressiveType
-  denomination: number
+  denomination: string
   softwareVersion: string | null
   status: MachineStatus
   locationId: string | null

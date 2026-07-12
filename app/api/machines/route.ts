@@ -36,7 +36,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         : undefined
 
     const denomination =
-      denomParam && VALID_DENOMS.has(denomParam) ? parseFloat(denomParam) : undefined
+      denomParam && VALID_DENOMS.has(denomParam) ? denomParam : undefined
 
     const result = await getAllMachinesForList({
       search,
@@ -102,8 +102,8 @@ function validateCreateInput(body: unknown): CreateMachineInput {
   if (!b.progressiveType || !VALID_PROGRESSIVE_TYPES.has(b.progressiveType as string)) {
     throw new ValidationError('progressiveType must be NONE, STANDALONE, LINKED, or WIDE_AREA')
   }
-  if (typeof b.denomination !== 'number' || b.denomination <= 0) {
-    throw new ValidationError('denomination must be a positive number')
+  if (!b.denomination || typeof b.denomination !== 'string' || b.denomination.trim() === '') {
+    throw new ValidationError('denomination is required')
   }
 
   const statusParam = b.status as string | undefined
@@ -118,7 +118,7 @@ function validateCreateInput(body: unknown): CreateMachineInput {
     gameBrand: (b.gameBrand as string).trim(),
     gameType: (b.gameType as string).trim(),
     progressiveType: b.progressiveType as ProgressiveType,
-    denomination: b.denomination as number,
+    denomination: (b.denomination as string).trim(),
     softwareVersion:
       typeof b.softwareVersion === 'string' ? b.softwareVersion.trim() || undefined : undefined,
     locationId: typeof b.locationId === 'string' ? b.locationId || undefined : undefined,

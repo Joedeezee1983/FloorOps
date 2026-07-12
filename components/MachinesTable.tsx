@@ -395,7 +395,7 @@ function MachineRow({
       <Td className="hidden md:table-cell">{machine.gameBrand}</Td>
       <Td className="hidden md:table-cell">{machine.gameType}</Td>
       <Td className="hidden lg:table-cell">{PROGRESSIVE_TYPE_LABELS[machine.progressiveType] ?? machine.progressiveType}</Td>
-      <Td className="hidden lg:table-cell font-mono">${machine.denomination.toFixed(2)}</Td>
+      <Td className="hidden lg:table-cell font-mono">{machine.denomination}</Td>
       <Td className="hidden xl:table-cell text-gray-500">{machine.softwareVersion ?? '—'}</Td>
       <Td><StatusBadge status={machine.status} size="sm" /></Td>
       <Td className="hidden sm:table-cell">{machine.locationName ?? <span className="text-gray-600">—</span>}</Td>
