@@ -846,7 +846,7 @@ function RequestPartModal({
       let binary = ''
       const CHUNK_SIZE = 8192
       for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
-        binary += String.fromCharCode(...uint8Array.subarray(i, i + CHUNK_SIZE))
+        binary += String.fromCharCode(...Array.from(uint8Array.subarray(i, i + CHUNK_SIZE)))
       }
       const base64 = btoa(binary)
       const mimeType = file.type === 'image/jpg' ? 'image/jpeg' : file.type
