@@ -364,6 +364,7 @@ function LocationsTab() {
   const [showAdd, setShowAdd] = useState(false)
   const [editingLocation, setEditingLocation] = useState<AdminLocationItem | null>(null)
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const loadLocations = useCallback(async () => {
     setIsLoading(true)
@@ -400,6 +401,17 @@ function LocationsTab() {
     })
     setShowAdd(false)
     setEditingLocation(null)
+  }
+
+  const handleDelete = async (id: string): Promise<void> => {
+    const res = await fetch(`/api/admin/locations/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const json = await res.json() as { error?: string }
+      setFetchError(json.error ?? 'Failed to delete location.')
+      return
+    }
+    setLocations((prev) => prev.filter((l) => l.id !== id))
+    setConfirmDeleteId(null)
   }
 
   return (
@@ -450,6 +462,13 @@ function LocationsTab() {
                       >
                         {loc.isActive ? 'Deactivate' : 'Reactivate'}
                       </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(loc.id)}
+                        disabled={locations.length <= 1}
+                        className="text-xs px-2.5 py-1 rounded-lg border border-red-900 text-red-500 hover:bg-red-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -464,6 +483,16 @@ function LocationsTab() {
           location={editingLocation ?? undefined}
           onSaved={handleSaved}
           onClose={() => { setShowAdd(false); setEditingLocation(null) }}
+        />
+      )}
+
+      {confirmDeleteId !== null && (
+        <ConfirmDialog
+          title="Delete Location"
+          message="This will permanently delete this location along with all machines, users assignments, shifts, service alerts, and all other data associated with it. This cannot be undone."
+          confirmLabel="Delete Location"
+          onConfirm={() => void handleDelete(confirmDeleteId)}
+          onClose={() => setConfirmDeleteId(null)}
         />
       )}
     </div>

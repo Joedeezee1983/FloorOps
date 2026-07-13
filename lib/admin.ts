@@ -146,6 +146,37 @@ export async function updateLocation(id: string, input: UpdateLocationInput): Pr
   return mapLocationRow(row)
 }
 
+/**
+ * Deletes a location and all associated records.
+ * Throws if this is the last remaining location.
+ * Cascade order: nullify FKs → delete child records → delete location.
+ */
+export async function deleteLocation(id: string): Promise<void> {
+  const locationCount = await prisma.location.count()
+  if (locationCount <= 1) throw new Error('LAST_LOCATION')
+
+  const [machines, shifts] = await Promise.all([
+    prisma.machine.findMany({ where: { locationId: id }, select: { id: true } }),
+    prisma.shift.findMany({ where: { locationId: id }, select: { id: true } }),
+  ])
+  const machineIds = machines.map((m) => m.id)
+  const shiftIds = shifts.map((s) => s.id)
+
+  await prisma.$transaction([
+    prisma.user.updateMany({ where: { locationId: id }, data: { locationId: null } }),
+    prisma.shiftTask.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } }),
+    prisma.partRequest.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } }),
+    prisma.partRequest.updateMany({ where: { shiftId: { in: shiftIds } }, data: { shiftId: null } }),
+    prisma.serviceAlert.updateMany({ where: { machineId: { in: machineIds } }, data: { machineId: null } }),
+    prisma.serviceAlert.deleteMany({ where: { locationId: id } }),
+    prisma.machine.deleteMany({ where: { locationId: id } }),
+    prisma.shift.deleteMany({ where: { locationId: id } }),
+    prisma.floorBlueprint.deleteMany({ where: { locationId: id } }),
+    prisma.systemSettings.deleteMany({ where: { locationId: id } }),
+    prisma.location.delete({ where: { id } }),
+  ])
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 /**

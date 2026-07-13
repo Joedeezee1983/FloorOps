@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { updateLocation } from '@/lib/admin'
+import { updateLocation, deleteLocation } from '@/lib/admin'
 
 export async function PATCH(
   req: NextRequest,
@@ -42,6 +42,27 @@ export async function PATCH(
     return NextResponse.json({ data: location })
   } catch (error) {
     console.error('[admin/locations/id] Failed to update location:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+): Promise<NextResponse> {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    await deleteLocation(params.id)
+    return NextResponse.json({ data: null })
+  } catch (error) {
+    if (error instanceof Error && error.message === 'LAST_LOCATION') {
+      return NextResponse.json({ error: 'Cannot delete the last remaining location.' }, { status: 409 })
+    }
+    console.error('[admin/locations/id] Failed to delete location:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
