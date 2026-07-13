@@ -80,7 +80,7 @@ export const GAME_TYPES = [
 ] as const
 
 export const DENOMINATIONS = [
-  '0.01', '0.02', '0.05', '0.10', '0.25', '0.50', '1.00', '2.00', '5.00', '10.00', '25.00', '100.00',
+  '1 cent', '2 cent', '5 cent', '10 cent', '25 cent', '50 cent', '1 dollar',
 ] as const
 
 export const PROGRESSIVE_TYPE_LABELS: Record<string, string> = {

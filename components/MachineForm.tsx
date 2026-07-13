@@ -32,7 +32,7 @@ function toFormState(m?: MachineListItem): FormState {
       gameBrand: '',
       gameType: '',
       progressiveType: 'NONE',
-      denomination: '0.01',
+      denomination: '1 cent',
       softwareVersion: '',
       locationId: '',
       status: 'ONLINE',
