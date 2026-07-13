@@ -32,7 +32,10 @@
       "Bash(git -C /c/Users/afdob/FloorOps commit -m \"fix: blueprint upload save to correct public directory on EC2\")",
       "Bash(echo \"EXIT:$?\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts', {}\\)\\)\")",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('version'\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('version'\\)\\)\")",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)"
     ]
   }
 }
