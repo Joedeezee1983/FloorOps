@@ -331,6 +331,8 @@ model PartRequest {
   quantity      Int         @default(1)
   urgency       PartUrgency @default(NORMAL)
   status        PartStatus  @default(PENDING)
+  imageUrl      String?
+  partNumber    String?
   orderedAt     DateTime?
   receivedAt    DateTime?
   notes         String?

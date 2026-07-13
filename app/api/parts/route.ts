@@ -31,6 +31,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       description: typeof body.description === 'string' ? body.description.trim() || undefined : undefined,
       quantity: body.quantity,
       urgency,
+      imageUrl: typeof body.imageUrl === 'string' ? body.imageUrl : undefined,
+      partNumber: typeof body.partNumber === 'string' ? body.partNumber.trim() || undefined : undefined,
       machineId: typeof body.machineId === 'string' ? body.machineId : undefined,
       shiftId: typeof body.shiftId === 'string' ? body.shiftId : undefined,
       requestedById: session.user.id,
@@ -45,6 +47,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         quantity: partRequest.quantity,
         urgency: partRequest.urgency,
         description: partRequest.description,
+        imageUrl: partRequest.imageUrl,
+        partNumber: partRequest.partNumber,
         machineInfo: partRequest.machine
           ? `#${partRequest.machine.assetNumber} — ${partRequest.machine.gameName}`
           : null,

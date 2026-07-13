@@ -1,3 +1,5 @@
+import { readFile } from 'fs/promises'
+import { join } from 'path'
 import { Resend } from 'resend'
 import { env } from '@/lib/env'
 
@@ -69,6 +71,8 @@ export interface PartRequestEmailData {
   quantity: number
   urgency: string
   description: string | null
+  imageUrl: string | null
+  partNumber: string | null
   machineInfo: string | null
   requestedByName: string | null
   notes: string | null
@@ -76,11 +80,13 @@ export interface PartRequestEmailData {
 
 /**
  * Sends a part request notification to the inventory tech.
+ * Attaches the part photo if one was uploaded.
  */
 export async function sendPartRequestEmail(to: string, data: PartRequestEmailData): Promise<void> {
   const urgencyLabel = data.urgency === 'URGENT' ? 'URGENT' : 'Normal'
   const rows = [
     `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Part</td><td style="color:#f8fafc;padding:4px 0;font-size:13px;font-weight:600">${data.partName}</td></tr>`,
+    data.partNumber ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Part #</td><td style="color:#f8fafc;padding:4px 0;font-size:13px;font-family:monospace">${data.partNumber}</td></tr>` : '',
     `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Quantity</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.quantity}</td></tr>`,
     `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Priority</td><td style="padding:4px 0"><span style="font-size:12px;font-weight:600;padding:2px 8px;border-radius:4px;background:${data.urgency === 'URGENT' ? '#7f1d1d' : '#1e3a5f'};color:${data.urgency === 'URGENT' ? '#fca5a5' : '#93c5fd'}">${urgencyLabel}</span></td></tr>`,
     data.machineInfo ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Machine</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.machineInfo}</td></tr>` : '',
@@ -88,6 +94,8 @@ export async function sendPartRequestEmail(to: string, data: PartRequestEmailDat
     data.requestedByName ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Requested by</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.requestedByName}</td></tr>` : '',
     data.notes ? `<tr><td style="color:#94a3b8;padding:4px 0;font-size:13px">Notes</td><td style="color:#f8fafc;padding:4px 0;font-size:13px">${data.notes}</td></tr>` : '',
   ].filter(Boolean).join('')
+
+  const photoNote = data.imageUrl ? '<p style="color:#94a3b8;font-size:12px;margin:16px 0 0">Part photo attached.</p>' : ''
 
   const html = `<!DOCTYPE html>
 <html>
@@ -98,18 +106,36 @@ export async function sendPartRequestEmail(to: string, data: PartRequestEmailDat
       <div style="height:1px;background:#334155;margin:12px 0 24px"></div>
       <h2 style="color:#f8fafc;font-size:18px;font-weight:600;margin:0 0 16px">New Part Request</h2>
       <table style="width:100%;border-collapse:collapse">${rows}</table>
+      ${photoNote}
       <p style="color:#64748b;font-size:12px;margin:24px 0 0">Log in to FloorOps to update the request status.</p>
     </div>
   </div>
 </body>
 </html>`
 
+  const attachments = await buildPhotoAttachment(data.imageUrl)
+
   await getResend().emails.send({
     from: FROM,
     to,
     subject: `${data.urgency === 'URGENT' ? '[URGENT] ' : ''}Part Request: ${data.partName}`,
     html,
+    attachments,
   })
+}
+
+async function buildPhotoAttachment(
+  imageUrl: string | null,
+): Promise<Array<{ filename: string; content: Buffer }>> {
+  if (!imageUrl) return []
+  try {
+    const filePath = join(process.cwd(), 'public', imageUrl)
+    const content = await readFile(filePath)
+    const ext = imageUrl.split('.').pop() ?? 'jpg'
+    return [{ filename: `part-photo.${ext}`, content }]
+  } catch {
+    return []
+  }
 }
 
 export interface ServiceAlertEmailData {

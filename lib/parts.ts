@@ -9,6 +9,8 @@ const PART_REQUEST_SELECT = {
   quantity: true,
   urgency: true,
   status: true,
+  imageUrl: true,
+  partNumber: true,
   orderedAt: true,
   receivedAt: true,
   notes: true,
@@ -26,6 +28,8 @@ type PartRequestRow = {
   quantity: number
   urgency: PartUrgency
   status: PartStatus
+  imageUrl: string | null
+  partNumber: string | null
   orderedAt: Date | null
   receivedAt: Date | null
   notes: string | null
@@ -44,6 +48,8 @@ function mapPartRequest(r: PartRequestRow): PartRequestSummary {
     quantity: r.quantity,
     urgency: r.urgency,
     status: r.status,
+    imageUrl: r.imageUrl,
+    partNumber: r.partNumber,
     orderedAt: r.orderedAt?.toISOString() ?? null,
     receivedAt: r.receivedAt?.toISOString() ?? null,
     notes: r.notes,
@@ -60,6 +66,8 @@ export interface CreatePartRequestInput {
   description?: string
   quantity: number
   urgency: PartUrgency
+  imageUrl?: string
+  partNumber?: string
   machineId?: string
   shiftId?: string
   requestedById: string
@@ -75,6 +83,8 @@ export async function createPartRequest(input: CreatePartRequestInput): Promise<
       description: input.description ?? null,
       quantity: input.quantity,
       urgency: input.urgency,
+      imageUrl: input.imageUrl ?? null,
+      partNumber: input.partNumber ?? null,
       machineId: input.machineId ?? null,
       shiftId: input.shiftId ?? null,
       requestedById: input.requestedById,

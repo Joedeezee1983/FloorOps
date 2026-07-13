@@ -791,8 +791,8 @@ function PartsTab() {
         </div>
       ) : (
         <div className="rounded-xl border border-gray-800 overflow-x-auto">
-          <table className="w-full text-sm min-w-[800px]">
-            <TableHeader cols={['Part', 'Machine', 'Qty', 'Priority', 'Status', 'Requested By', 'Date', 'Update', '']} />
+          <table className="w-full text-sm min-w-[860px]">
+            <TableHeader cols={['Part', 'Photo', 'Machine', 'Qty', 'Priority', 'Status', 'Requested By', 'Date', 'Update', '']} />
             <tbody className="divide-y divide-gray-800/50">
               {parts.map((part) => {
                 const isCancelled = part.status === 'CANCELLED'
@@ -806,8 +806,24 @@ function PartsTab() {
                       <p className={`font-medium ${isCancelled ? 'text-gray-500 line-through' : 'text-white'}`}>
                         {part.name}
                       </p>
+                      {part.partNumber && (
+                        <p className="text-xs text-gray-500 mt-0.5 font-mono">#{part.partNumber}</p>
+                      )}
                       {part.description && (
                         <p className="text-xs text-gray-500 mt-0.5 max-w-xs truncate">{part.description}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {part.imageUrl ? (
+                        <a href={part.imageUrl} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={part.imageUrl}
+                            alt="Part photo"
+                            className="w-10 h-10 object-cover rounded border border-gray-700 hover:opacity-75 transition-opacity cursor-zoom-in"
+                          />
+                        </a>
+                      ) : (
+                        <span className="text-gray-600">—</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-300">

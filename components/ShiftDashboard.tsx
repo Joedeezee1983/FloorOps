@@ -775,6 +775,9 @@ function CreateShiftModal({
 
 // ─── Request part modal ───────────────────────────────────────────────────────
 
+const PART_PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+const PART_PHOTO_MAX_BYTES = 5 * 1024 * 1024
+
 function RequestPartModal({
   shiftId,
   locationId,
@@ -786,20 +789,29 @@ function RequestPartModal({
 }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [partNumber, setPartNumber] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [urgency, setUrgency] = useState<PartUrgency>('NORMAL')
   const [assetQuery, setAssetQuery] = useState('')
   const [searchResults, setSearchResults] = useState<MachineSearchResult[]>([])
   const [selectedMachine, setSelectedMachine] = useState<MachineSearchResult | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [isIdentifying, setIsIdentifying] = useState(false)
+  const [identifyError, setIdentifyError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
-  }, [])
+    return () => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current)
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
+    }
+  }, [photoPreviewUrl])
 
   const handleAssetQueryChange = (q: string) => {
     setAssetQuery(q)
@@ -825,6 +837,94 @@ function RequestPartModal({
     setSearchResults([])
   }
 
+  const identifyPhoto = async (file: File): Promise<void> => {
+    setIsIdentifying(true)
+    setIdentifyError(null)
+    try {
+      const arrayBuffer = await file.arrayBuffer()
+      const uint8Array = new Uint8Array(arrayBuffer)
+      let binary = ''
+      const CHUNK_SIZE = 8192
+      for (let i = 0; i < uint8Array.length; i += CHUNK_SIZE) {
+        binary += String.fromCharCode(...uint8Array.subarray(i, i + CHUNK_SIZE))
+      }
+      const base64 = btoa(binary)
+      const mimeType = file.type === 'image/jpg' ? 'image/jpeg' : file.type
+
+      const res = await fetch('/api/parts/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType }),
+      })
+      const json = await res.json() as { data?: { partName: string; description: string; confidence: string }; error?: string }
+      if (!res.ok || !json.data) {
+        setIdentifyError('AI could not identify the part — fill in manually.')
+        return
+      }
+      if (!name) setName(json.data.partName)
+      if (!description) setDescription(json.data.description)
+    } catch {
+      setIdentifyError('AI identification failed — fill in manually.')
+    } finally {
+      setIsIdentifying(false)
+    }
+  }
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    if (!file) return
+
+    if (!PART_PHOTO_ALLOWED_TYPES.includes(file.type)) {
+      setError('Photo must be JPG, PNG, or WEBP.')
+      return
+    }
+    if (file.size > PART_PHOTO_MAX_BYTES) {
+      setError('Photo must be under 5 MB.')
+      return
+    }
+
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
+    setPhotoFile(file)
+    setPhotoPreviewUrl(URL.createObjectURL(file))
+    setError(null)
+    void identifyPhoto(file)
+  }
+
+  const handleClearPhoto = () => {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl)
+    setPhotoFile(null)
+    setPhotoPreviewUrl(null)
+    setIdentifyError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handlePartNumberLookup = async (): Promise<void> => {
+    if (!partNumber.trim()) return
+    setIsIdentifying(true)
+    setIdentifyError(null)
+    try {
+      const res = await fetch('/api/parts/identify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partNumber: partNumber.trim(),
+          machineName: selectedMachine?.gameName,
+        }),
+      })
+      const json = await res.json() as { data?: { partName: string; description: string; confidence: string }; error?: string }
+      if (!res.ok || !json.data) {
+        setIdentifyError('AI could not identify this part number — fill in manually.')
+        return
+      }
+      if (!name) setName(json.data.partName)
+      if (!description) setDescription(json.data.description)
+    } catch {
+      setIdentifyError('AI lookup failed — fill in manually.')
+    } finally {
+      setIsIdentifying(false)
+    }
+  }
+
   const handleSubmit = async (): Promise<void> => {
     if (!name.trim()) { setError('Part name is required.'); return }
     const qty = parseInt(quantity, 10)
@@ -833,6 +933,19 @@ function RequestPartModal({
     setIsSubmitting(true)
     setError(null)
     try {
+      let imageUrl: string | undefined
+      if (photoFile) {
+        const formData = new FormData()
+        formData.append('file', photoFile)
+        const uploadRes = await fetch('/api/parts/upload', { method: 'POST', body: formData })
+        const uploadJson = await uploadRes.json() as { data?: { imageUrl: string }; error?: string }
+        if (!uploadRes.ok || !uploadJson.data) {
+          setError(uploadJson.error ?? 'Failed to upload photo.')
+          return
+        }
+        imageUrl = uploadJson.data.imageUrl
+      }
+
       const res = await fetch('/api/parts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -841,6 +954,8 @@ function RequestPartModal({
           description: description.trim() || undefined,
           quantity: qty,
           urgency,
+          imageUrl,
+          partNumber: partNumber.trim() || undefined,
           shiftId,
           locationId,
           machineId: selectedMachine?.id ?? undefined,
@@ -880,6 +995,76 @@ function RequestPartModal({
         ) : (
           <>
             <div className="px-6 py-5 space-y-4">
+              {/* Photo upload */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Part photo (optional)
+                </label>
+                {photoPreviewUrl ? (
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={photoPreviewUrl}
+                      alt="Part preview"
+                      className="w-20 h-20 object-cover rounded-lg border border-gray-700 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      {isIdentifying && (
+                        <p className="text-xs text-blue-400 mb-1">Identifying part with AI...</p>
+                      )}
+                      {identifyError && (
+                        <p className="text-xs text-yellow-400 mb-1">{identifyError}</p>
+                      )}
+                      {!isIdentifying && !identifyError && (
+                        <p className="text-xs text-green-400 mb-1">AI pre-filled the fields below — review and edit.</p>
+                      )}
+                      <button
+                        onClick={handleClearPhoto}
+                        className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                      >
+                        Remove photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-3 w-full cursor-pointer rounded-lg border border-dashed border-gray-700 bg-gray-800/50 px-4 py-3 hover:border-gray-600 transition-colors">
+                    <svg className="w-5 h-5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-sm text-gray-400">Upload photo — AI will identify the part</span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handlePhotoChange}
+                      className="sr-only"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Part number */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Part number (optional)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={partNumber}
+                    onChange={(e) => setPartNumber(e.target.value)}
+                    placeholder="e.g. JCM-WBA-01"
+                    className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => void handlePartNumberLookup()}
+                    disabled={!partNumber.trim() || isIdentifying}
+                    className="px-3 py-2 text-xs font-medium bg-gray-700 text-gray-300 border border-gray-600 rounded-lg hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                  >
+                    {isIdentifying ? '...' : 'Lookup'}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wider">Part name</label>
                 <input
@@ -988,7 +1173,7 @@ function RequestPartModal({
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">
               <button onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">Cancel</button>
               <button
-                onClick={handleSubmit}
+                onClick={() => void handleSubmit()}
                 disabled={isSubmitting}
                 className="px-5 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >

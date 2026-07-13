@@ -305,6 +305,8 @@ export interface PartRequestSummary {
   quantity: number
   urgency: PartUrgency
   status: PartStatus
+  imageUrl: string | null
+  partNumber: string | null
   orderedAt: string | null
   receivedAt: string | null
   notes: string | null
