@@ -16,7 +16,7 @@ export interface PartIdentification {
   confidence: 'high' | 'medium' | 'low'
 }
 
-type AllowedMimeType = 'image/jpeg' | 'image/png' | 'image/webp'
+type AllowedMimeType = 'image/jpeg' | 'image/jpg' | 'image/png' | 'image/webp'
 const ALLOWED_VISION_TYPES = new Set<string>(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
